@@ -1,5 +1,6 @@
 # DelphiLibOpenSSL
-A Delphi unit that provides complete static bindings to OpenSSL. Instead of dynamically loading OpenSSL DLLs at runtime, this project compiles OpenSSL C source code into `.obj` files and statically links them into Delphi applications. This eliminates DLL deployment complexity and ensures version consistency.
+A Delphi unit that provides complete static bindings to OpenSSL. Instead of dynamically loading OpenSSL DLLs at runtime, this project compiles OpenSSL C source code into `.obj` files and statically links them into Delphi applications. 
+This eliminates DLL deployment complexity and ensures version consistency. I don't have enough time to fully support the project, so I've decided to release it as public; I hope it will be useful to others as well.
 
 ## Core Features
 - **Static linking** - zero DLL deployment; everything compiles into a single `.exe` or `.bpl`
@@ -73,6 +74,8 @@ To switch compilers, edit `libOpenSSL3.pas` — comment/uncomment the `{$DEFINE 
 
 ## Building Object Files
 Since static linking of C code in Delphi imposes certain requirements on the source code (such as the use of case-insensitive identifier names, linking order, and dependencies on external code), and the OpenSSL source code does not fully meet these requirements, this project uses an approach based on dynamically modifying the source file tree. This task is performed by a set of scripts located in the helpers/ directory. I have tried to describe the changes made in detail directly within these scripts.
+A huge thank you to [Rudy Velthuis](http://rvelthuis.de/articles/articles-convert.html) for his series of posts in which he described the potential challenges associated with directly using compiled C code.
+You are no longer with us, but your contribution remains invaluable.
 
 ### Prerequisites
 
@@ -206,6 +209,5 @@ PEM/X.509 certificate I/O, RSA/EC key generation, SSL context creation, and prov
 OpenSSL is licensed under the [Apache License 2.0](https://www.openssl.org/source/license.html).
 The Delphi bindings in this repository follow the same license.
 
-## PS
-A huge thanks to [Rudy Velthuis](http://rvelthuis.de/articles/articles-convert.html) for his series of posts in which he described the potential challenges of directly using compiled C code.
-You are no longer with us, but your contribution remains invaluable.
+## PostScriptum
+I don't have enough time to fully maintain this project, so I've decided to make it publicly available; I hope others will find it useful.
