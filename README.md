@@ -50,7 +50,7 @@ begin
 end.
 ```
 
-By default the unit links OpenSSL **4.x** objects. To switch to 3.x, comment out `{$DEFINE OPENSSL_4X}` and uncomment `{$DEFINE OPENSSL_3X}` at the top of `libOpenSSL3.pas`.
+By default the unit links  **4.x** objects. To switch to 3.x, comment out `{$DEFINE OPENSSL_4X}` and uncomment `{$DEFINE OPENSSL_3X}` at the top of `libOpenSSL3.pas`.
 
 ## Compiler / Platform Matrix
 
@@ -134,7 +134,7 @@ set "VS_BUILD=D:\VisualStudio2019\VC\Auxiliary\Build"
 | Variable | How it's set | Example (branch 4) |
 |----------|-------------|---------------------|
 | `OPENSSL_BRANCH` | Environment or default `4` | `4` |
-| `OPENSSL_SRC` | Auto from branch | `c_src\openssl` |
+| `OPENSSL_SRC` | Auto from branch | `c_src\openssl-openssl-4.0.0` |
 | `OBJ_DIR` | Auto from branch | `obj4` |
 | `RSVARS` | Per target | `...\rsvars.bat` or `...\vcvars64.bat` |
 | `OBJ_OUT` | Per target | `obj4\win64\vc` |
