@@ -206,3 +206,6 @@ PEM/X.509 certificate I/O, RSA/EC key generation, SSL context creation, and prov
 OpenSSL is licensed under the [Apache License 2.0](https://www.openssl.org/source/license.html).
 The Delphi bindings in this repository follow the same license.
 
+## PS
+A huge thank you to [Rudy Velthuis](http://rvelthuis.de/articles/articles-convert.html) for his series of posts in which he described the potential challenges of directly using compiled C code.
+You are no longer with us, but your contribution remains invaluable.
