@@ -91,8 +91,8 @@ The project supports two OpenSSL branches simultaneously:
 
 | Branch | Source Path | Object Dir | Pascal Define |
 |--------|------------|------------|---------------|
-| **3.x** | `c_src/openssl-3.6.1/` | `obj3/` | `OPENSSL_3X` |
-| **4.x** _(default)_ | `c_src/openssl/` | `obj4/` | `OPENSSL_4X` |
+| **3.x** | `c_src/openssl-openssl-3.6.1/` | `obj3/` | `OPENSSL_3X` |
+| **4.x** _(default)_ | `c_src/openssl-openssl-4.0.0/` | `obj4/` | `OPENSSL_4X` |
 
 **In Pascal:** set `{$DEFINE OPENSSL_3X}` or `{$DEFINE OPENSSL_4X}` at the top of `libOpenSSL3.pas`.
 Only one may be active at a time (a compile-time guard enforces this).
