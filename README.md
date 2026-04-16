@@ -1,6 +1,6 @@
 # DelphiLibOpenSSL
-A Delphi unit that provides complete static bindings to OpenSSL. Instead of dynamically loading OpenSSL DLLs at runtime, this project compiles OpenSSL C source code into `.obj` files and statically links them into Delphi applications. This eliminates DLL deployment complexity and ensures version consistency.
-
+A Delphi unit that provides complete static bindings to OpenSSL. Instead of dynamically loading OpenSSL DLLs at runtime, this project compiles OpenSSL C source code into `.obj` files and statically links them into Delphi applications. 
+This eliminates DLL deployment complexity and ensures version consistency.
 ## Core Features
 - **Static linking** - zero DLL deployment; everything compiles into a single `.exe` or `.bpl`
 - Most complete Pascal translation of OpenSSL API headers (**~16,000 lines**), **4,993 API functions** (**~99.2%** api coverage),
@@ -73,6 +73,8 @@ To switch compilers, edit `libOpenSSL3.pas` — comment/uncomment the `{$DEFINE 
 
 ## Building Object Files
 Since static linking of C code in Delphi imposes certain requirements on the source code (such as the use of case-insensitive identifier names, linking order, and dependencies on external code), and the OpenSSL source code does not fully meet these requirements, this project uses an approach based on dynamically modifying the source file tree. This task is performed by a set of scripts located in the helpers/ directory. I have tried to describe the changes made in detail directly within these scripts.
+A huge thank you to [Rudy Velthuis](http://rvelthuis.de/articles/articles-convert.html) for his series of posts in which he described the potential challenges associated with directly using compiled C code.
+You are no longer with us, but your contribution remains invaluable.
 
 ### Prerequisites
 
@@ -89,8 +91,8 @@ The project supports two OpenSSL branches simultaneously:
 
 | Branch | Source Path | Object Dir | Pascal Define |
 |--------|------------|------------|---------------|
-| **3.x** | `c_src/openssl-3.6.1/` | `obj3/` | `OPENSSL_3X` |
-| **4.x** _(default)_ | `c_src/openssl/` | `obj4/` | `OPENSSL_4X` |
+| **3.x** | `c_src/openssl-openssl-3.6.1/` | `obj3/` | `OPENSSL_3X` |
+| **4.x** _(default)_ | `c_src/openssl-openssl-4.0.0/` | `obj4/` | `OPENSSL_4X` |
 
 **In Pascal:** set `{$DEFINE OPENSSL_3X}` or `{$DEFINE OPENSSL_4X}` at the top of `libOpenSSL3.pas`.
 Only one may be active at a time (a compile-time guard enforces this).
@@ -206,3 +208,5 @@ PEM/X.509 certificate I/O, RSA/EC key generation, SSL context creation, and prov
 OpenSSL is licensed under the [Apache License 2.0](https://www.openssl.org/source/license.html).
 The Delphi bindings in this repository follow the same license.
 
+## PostScriptum
+I don't have enough time to fully maintain this project, so I've decided to make it publicly available; I hope others will find it useful.
