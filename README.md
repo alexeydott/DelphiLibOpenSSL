@@ -1,5 +1,5 @@
 # DelphiLibOpenSSL
-A Delphi/Object Pascal library that provides complete static bindings to OpenSSL. Instead of dynamically loading OpenSSL DLLs at runtime, this project compiles OpenSSL C source code into `.obj` files and statically links them into Delphi applications. This eliminates DLL deployment complexity and ensures version consistency.
+A Delphi unit that provides complete static bindings to OpenSSL. Instead of dynamically loading OpenSSL DLLs at runtime, this project compiles OpenSSL C source code into `.obj` files and statically links them into Delphi applications. This eliminates DLL deployment complexity and ensures version consistency.
 
 ## Core Features
 - **Static linking** - zero DLL deployment; everything compiles into a single `.exe` or `.bpl`
