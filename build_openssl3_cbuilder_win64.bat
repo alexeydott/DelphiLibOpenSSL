@@ -181,6 +181,20 @@ for /R "%OPENSSL_SRC%" %%f in (*.obj *.o) do (
 
 echo   Collected !OBJ_COUNT! object files.
 
+REM === Post-process ELF OBJ files: demote duplicate data symbols GLOBAL->LOCAL ===
+REM BCC64 emits ELF objects. The three symbols below are also declared as
+REM Pascal variables in libOpenSSL3.pas. Delphi's dcc64 linker warns (W1028)
+REM when it sees both an OBJ definition and a Pascal declaration for the same
+REM name, so demote the OBJ definitions and let Pascal bridge cross-OBJ refs.
+echo [6.5/7] Post-processing ELF OBJ files (demoting duplicate data symbols)...
+python "%~dp0helpers\patch_coff_symbol.py" --demote "%OBJ_OUT%\libcrypto-lib-bio_addr_win64.obj" bio_lookup_lock
+if errorlevel 1 exit /b 1
+python "%~dp0helpers\patch_coff_symbol.py" --demote "%OBJ_OUT%\libcrypto-lib-bio_meth_win64.obj" bio_type_count
+if errorlevel 1 exit /b 1
+python "%~dp0helpers\patch_coff_symbol.py" --demote "%OBJ_OUT%\libcrypto-lib-cpuid_win64.obj" OPENSSL_ia32cap_P
+if errorlevel 1 exit /b 1
+echo   ELF symbol demotion complete.
+
 REM === Generate Delphi .inc file ===
 echo [7/7] Generating %OBJ_DIR%_L_win64_bcc.inc...
 

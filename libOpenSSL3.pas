@@ -27,7 +27,11 @@
 // === OpenSSL version selection ===
 // Uncomment ONE of the following:
 // {$DEFINE OPENSSL_3X}   // < uncomment for OpenSSL 3.x
-{$DEFINE OPENSSL_4X}      // < default: OpenSSL 4.x
+{$IFNDEF OPENSSL_3X}
+  {$IFNDEF OPENSSL_4X}
+    {$DEFINE OPENSSL_4X}  // < default: OpenSSL 4.x
+  {$ENDIF}
+{$ENDIF}
 
 {$IFDEF OPENSSL_3X}{$IFDEF OPENSSL_4X}
   'Error: Define exactly one of OPENSSL_3X or OPENSSL_4X'
@@ -76,21 +80,26 @@ uses
 //   prefix (_functionName). Objects are linked from obj3\win32\bcc32c or obj4\win32\bcc32c.
 //   Full bcc32c support requires cdecl external declarations - see TODO below.
 {$UNDEF C_COMPILER_BORLAND}
-{$UNDEF C_COMPILER_BORLAND_32}
-{$UNDEF C_COMPILER_BORLAND_64}
-{$UNDEF C_COMPILER_BCC32C}
 {$UNDEF C_COMPILER_MSC}
-{$UNDEF C_COMPILER_MSC_32}
-{$UNDEF C_COMPILER_MSC_64}
 {$UNDEF __CDECL}
 {$IFDEF CPUX86}
-   {$DEFINE C_COMPILER_BORLAND_32}  // < Win32 default: bcc32 (register convention)
-   {.$DEFINE C_COMPILER_BCC32C}     // < uncomment for bcc32c (cdecl + underscore)
-   {.$DEFINE C_COMPILER_MSC_32}     // < uncomment for MSVC Win32 (cdecl + underscore)
+   {$IFNDEF C_COMPILER_BORLAND_32}
+     {$IFNDEF C_COMPILER_BCC32C}
+       {$IFNDEF C_COMPILER_MSC_32}
+         {$DEFINE C_COMPILER_BORLAND_32}  // < Win32 default: bcc32 (register convention)
+       {$ENDIF}
+     {$ENDIF}
+   {$ENDIF}
+   {.$DEFINE C_COMPILER_BCC32C}       // < uncomment for bcc32c (cdecl + underscore)
+   {.$DEFINE C_COMPILER_MSC_32}       // < uncomment for MSVC Win32 (cdecl + underscore)
 {$ELSE}
 {$IFDEF CPUX64}
-   {$DEFINE C_COMPILER_MSC_64}      // < Win64 default: MSVC
-   {.$DEFINE C_COMPILER_BORLAND_64} // < uncomment for bcc64 Win64
+   {$IFNDEF C_COMPILER_BORLAND_64}
+     {$IFNDEF C_COMPILER_MSC_64}
+       {$DEFINE C_COMPILER_MSC_64}      // < Win64 default: MSVC
+     {$ENDIF}
+   {$ENDIF}
+   {.$DEFINE C_COMPILER_BORLAND_64}   // < uncomment for bcc64 Win64
 {$ELSE}
   'Error: C compiler for this CPU not yet $DEFINEd.'
 {$ENDIF}
@@ -20533,23 +20542,21 @@ procedure EVP_Cipher_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external na
 // Removed in OpenSSL 4.x (deprecated TLS method APIs dropped).
 // For BCC32, patch_static_link.py patches ssl/methods.c directly (no /FI support).
 {$IFDEF OPENSSL_3X}
-{$IFNDEF C_COMPILER_BORLAND_32}
-procedure dtlsv1_client_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_client_method_';
-procedure dtlsv1_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_method_';
-procedure dtlsv1_server_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_server_method_';
-procedure dtlsv1_2_client_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_client_method_';
-procedure dtlsv1_2_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_method_';
-procedure dtlsv1_2_server_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_server_method_';
-procedure tlsv1_1_client_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_client_method_';
-procedure tlsv1_1_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_method_';
-procedure tlsv1_1_server_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_server_method_';
-procedure tlsv1_2_client_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_client_method_';
-procedure tlsv1_2_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_method_';
-procedure tlsv1_2_server_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_server_method_';
-procedure tlsv1_client_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_client_method_';
-procedure tlsv1_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_method_';
-procedure tlsv1_server_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_server_method_';
-{$ENDIF}
+procedure dtlsv1_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_client_method_';{$ENDIF}
+procedure dtlsv1_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_method_';{$ENDIF}
+procedure dtlsv1_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_server_method_';{$ENDIF}
+procedure dtlsv1_2_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_client_method_';{$ENDIF}
+procedure dtlsv1_2_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_method_';{$ENDIF}
+procedure dtlsv1_2_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_server_method_';{$ENDIF}
+procedure tlsv1_1_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_client_method_';{$ENDIF}
+procedure tlsv1_1_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_method_';{$ENDIF}
+procedure tlsv1_1_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_server_method_';{$ENDIF}
+procedure tlsv1_2_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_client_method_';{$ENDIF}
+procedure tlsv1_2_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_method_';{$ENDIF}
+procedure tlsv1_2_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_server_method_';{$ENDIF}
+procedure tlsv1_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_client_method_';{$ENDIF}
+procedure tlsv1_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_method_';{$ENDIF}
+procedure tlsv1_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_server_method_';{$ENDIF}
 {$ENDIF}
 
 // --- Public API symbols missing from the sorted list above ---
@@ -20685,15 +20692,15 @@ end;
 
 // --- CRT format helpers (pre-compiled, shared across compilers) ---
 {$IFDEF OPENSSL_3X}
-{$IFDEF CPUX64}{$L obj3\crt\fprintf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj\fprintf-3_win32}{$ENDIF}{$ENDIF}
-{$IFDEF CPUX64}{$L obj3\crt\sprintf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj\sprintf-3_win32}{$ENDIF}{$ENDIF}
-{$IFDEF CPUX64}{$L obj3\crt\vfprintf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj\vfprintf-3_win32}{$ENDIF}{$ENDIF}
-{$IFDEF CPUX64}{$L obj3\crt\vsprintf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj\vsprintf-3_win32}{$ENDIF}{$ENDIF}
+{$IFDEF CPUX64}{$L obj3\crt\fprintf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj3\crt\fprintf-3_win32}{$ENDIF}{$ENDIF}
+{$IFDEF CPUX64}{$L obj3\crt\sprintf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj3\crt\sprintf-3_win32}{$ENDIF}{$ENDIF}
+{$IFDEF CPUX64}{$L obj3\crt\vfprintf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj3\crt\vfprintf-3_win32}{$ENDIF}{$ENDIF}
+{$IFDEF CPUX64}{$L obj3\crt\vsprintf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj3\crt\vsprintf-3_win32}{$ENDIF}{$ENDIF}
 {$IFDEF CPUX64}{$L obj3\crt\_vsnprintf-3_win64}{$ENDIF}
-{$IFDEF CPUX64}{$L obj3\crt\printf_printer-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj\printf_printer-3_win32}{$ENDIF}{$ENDIF}
-{$IFDEF CPUX64}{$L obj3\crt\printf_printer_utils-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj\printf_printer_utils-3_win32}{$ENDIF}{$ENDIF}
-{$IFDEF CPUX64}{$L obj3\crt\sscanf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj\sscanf-3_win32}{$ENDIF}{$ENDIF}
-{$IFDEF CPUX64}{$L obj3\crt\vsscanf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj\vsscanf-3_win32}{$ENDIF}{$ENDIF}
+{$IFDEF CPUX64}{$L obj3\crt\printf_printer-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj3\crt\printf_printer-3_win32}{$ENDIF}{$ENDIF}
+{$IFDEF CPUX64}{$L obj3\crt\printf_printer_utils-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj3\crt\printf_printer_utils-3_win32}{$ENDIF}{$ENDIF}
+{$IFDEF CPUX64}{$L obj3\crt\sscanf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj3\crt\sscanf-3_win32}{$ENDIF}{$ENDIF}
+{$IFDEF CPUX64}{$L obj3\crt\vsscanf-3_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj3\crt\vsscanf-3_win32}{$ENDIF}{$ENDIF}
 {$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF CPUX64}{$L obj4\crt\fprintf-4_win64}{$ELSE}{$IFNDEF C_COMPILER_MSC_32}{$L obj4\crt\fprintf-4_win32}{$ENDIF}{$ENDIF}
@@ -23518,10 +23525,7 @@ procedure ossl_prov_ctx_get0_core_bio_method; external name 'ossl_prov_ctx_get0_
 procedure ossl_prov_ctx_set0_core_bio_method; external name 'ossl_prov_ctx_set0_core_bio_method';
 procedure ossl_prov_ctx_set0_core_get_params; external name 'ossl_prov_ctx_set0_core_get_params';
 // Renamed collision bridge: ossl_err_load_crypto_strings -> ossl_err_load_crypto_strings_
-// (BCC64 objects keep original name — rename fixup not applied to bcc64 OBJs)
-{$IFNDEF C_COMPILER_BORLAND_64}
 procedure ossl_err_load_crypto_strings_; external name 'ossl_err_load_crypto_strings_';
-{$ENDIF}
 // OpenSSL 3.6.1 cross-obj bridges (removed in 4.x)
 {$IFDEF OPENSSL_3X}
 procedure EVP_CIPHER_meth_get_ctrl; external name 'EVP_CIPHER_meth_get_ctrl';
@@ -23550,6 +23554,8 @@ function _onexit(func: Pointer): Pointer; cdecl;
   external 'msvcrt.dll' name '_onexit';
 function _gmtime64_s(tm_result: Pointer; timer: Pointer): Integer; cdecl;
   external 'msvcrt.dll' name '_gmtime64_s';
+function gmtime(timer: Pointer): Pointer; cdecl;
+  external 'msvcrt.dll' name 'gmtime';
 
 // Windows API needed by init_win64.obj
 function GetModuleHandleExW(dwFlags: DWORD; lpModuleName: PWideChar; phModule: Pointer): BOOL; stdcall;
@@ -23709,6 +23715,16 @@ function getnameinfo(sa: Pointer; salen: Integer;
   flags: Integer): Integer; stdcall;
   external 'ws2_32.dll' name 'getnameinfo';
 
+// --- Windows API ---
+function GetCurrentFiber: Pointer;
+asm
+  .noframe
+  mov rax, qword ptr gs:[$20]
+end;
+
+function GetModuleHandleExA(dwFlags: DWORD; lpModuleName: PAnsiChar; phModule: Pointer): BOOL; stdcall;
+  external 'kernel32.dll' name 'GetModuleHandleExA';
+
 // --- Borland CRT ---
 // __get_std_stream: returns FILE* for stdin/stdout/stderr (stub)
 function __get_std_stream(n: Integer): Pointer; cdecl;
@@ -23780,18 +23796,18 @@ end;
 // SOCKADDR_SIZE: Windows SDK inline compiled into OBJ by BCC64 — bridge to OBJ PUBDEF
 function sockaddr_size(ap: Pointer): Integer; cdecl; external name 'SOCKADDR_SIZE';
 
-// ossl_err_load_crypto_strings: renamed in BCC64 OBJs to avoid case collision with
-// ossl_err_load_CRYPTO_strings (different function). Mirrors MSVC collision header.
-// Patch applied by helpers/patch_coff_symbol.py --rename.
-procedure ossl_err_load_crypt_strings_; cdecl; external name 'ossl_err_load_crypt_strings_';
-
 // Internal OpenSSL data — BCC64 OBJs patched from GLOBAL to LOCAL by
-// helpers/patch_coff_symbol.py --demote.  Pascal vars serve as cross-OBJ bridges
-// (dcc64 cannot resolve EXTDEF→PUBDEF between OBJ files directly).
+// helpers/patch_coff_symbol.py --demote. Pascal vars serve as cross-OBJ bridges
+// (dcc64 cannot resolve EXTDEF to PUBDEF between OBJ files directly).
+//
+// bio_type_count is a lock-based CRYPTO_REF_COUNT in the BCC64 build:
+//   offset 0: int val, offset 8: CRYPTO_RWLOCK*
+// Keep the bridge 16 bytes so finalization reads a nil lock pointer.
+// OPENSSL_ia32cap_P is OPENSSL_IA32CAP_P_MAX_INDEXES = 10 unsigned int slots.
 var
   bio_lookup_lock: Pointer = nil;
-  bio_type_count: Integer = 0;
-  OPENSSL_ia32cap_P: array[0..3] of Cardinal = (0, 0, 0, 0);
+  bio_type_count: array[0..1] of Int64 = (0, 0);
+  OPENSSL_ia32cap_P: array[0..9] of Cardinal = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 {$ENDIF C_COMPILER_BORLAND_64}
 
 {$IFEND} // C_COMPILER_MSC_64 OR C_COMPILER_BORLAND_64
