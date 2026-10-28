@@ -51,6 +51,7 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="TestOpenSSL3API.pas"/>
+        <DCCReference Include="TestOpenSSLRegressions.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

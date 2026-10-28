@@ -20,7 +20,8 @@ uses
   Winapi.Windows,
   DUnitX.TestFramework,
   libOpenSSL3,
-  TestOpenSSL3API in 'TestOpenSSL3API.pas';
+  TestOpenSSL3API in 'TestOpenSSL3API.pas',
+  TestOpenSSLRegressions in 'TestOpenSSLRegressions.pas';
 
 var
   Runner: ITestRunner;

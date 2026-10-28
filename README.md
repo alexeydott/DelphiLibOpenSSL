@@ -7,7 +7,7 @@ This eliminates DLL deployment complexity and ensures version consistency.
   support for all major OpenSSL subsystems ( SSL/TLS, X.509, EVP, BIO, ASN.1, PKCS, CMS etc). see `Supported API Surface` chapter
 - **Win32 + Win64** - pre-built objects for both platforms, multiple compiler toolchains
 - **Reproducible builds** - build scripts for OpenSSL 3.x / 4.x branches see `Building Object Files` chapter
-- **DUnitX test suite** - 89 tests covering initialization, crypto, certificates, digests, and protocols
+- **DUnitX test suite** - 111 tests for OpenSSL 3.6.1 and 113 for OpenSSL 4.1.0, including TLS handshakes and ABI regressions
 
 ## Supported API Surface
 | Module | Functions | Description |
@@ -73,7 +73,7 @@ To switch compilers, edit `libOpenSSL3.pas` — comment/uncomment the `{$DEFINE 
 
 ## Building Object Files
 Since static linking of C code in Delphi imposes certain requirements on the source code (such as the use of case-insensitive identifier names, linking order, and dependencies on external code), and the OpenSSL source code does not fully meet these requirements, this project uses an approach based on dynamically modifying the source file tree. This task is performed by a set of scripts located in the helpers/ directory. I have tried to describe the changes made in detail directly within these scripts.
-A huge thank you to [Rudy Velthuis](http://rvelthuis.de/articles/articles-convert.html) for his series of posts in which he described the potential challenges associated with directly using compiled C code.
+A huge thanks to [Rudy Velthuis](http://rvelthuis.de/articles/articles-convert.html) for his series of posts in which he described the potential challenges associated with directly using compiled C code.
 You are no longer with us, but your contribution remains invaluable.
 
 ### Prerequisites
@@ -194,16 +194,35 @@ build_openssl3_cbuilder_classic_win32.bat
 
 ## Testing
 
+Run both OpenSSL branches across all five compiler configurations:
+
 ```batch
-cd tests
-"D:\Embarcadero RAD Studio\23.0\bin\rsvars.bat"
-dcc32 -B -$D+ -$L+ -GD -M -U".." OpenSSL3Tests.dpr
-OpenSSL3Tests.exe -b
+tests\run_tests.bat all
 ```
 
-The test suite (`tests/TestOpenSSL3API.pas`) contains **89 DUnitX tests** organized by area:
-initialization, version info, error handling, EVP digests, EVP ciphers, BIO memory operations,
-PEM/X.509 certificate I/O, RSA/EC key generation, SSL context creation, and provider queries.
+Set `OPENSSL_BRANCH=3` or `OPENSSL_BRANCH=4` to test one branch. The platform argument
+can be `win32`, `win64`, or `all`. Compiler paths come from `build_config.bat`.
+
+To repeat the matrix with an installed EurekaLog:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tests\verify-matrix.ps1 -EurekaLog
+```
+
+The suite contains **111 DUnitX tests for OpenSSL 3.6.1** and **113 for OpenSSL 4.1.0**
+in `tests/TestOpenSSL3API.pas` and `tests/TestOpenSSLRegressions.pas`. Coverage includes
+verified TLS 1.2/1.3 handshakes over paired memory BIOs, binary application data,
+untrusted certificate rejection, negotiated session duplication, and close_notify.
+Crypto regressions cover RSA signing and tamper rejection, ECDH, AES-GCM known vectors
+and invalid tags, CBC padding rejection, PBKDF2, and provider HMAC. Interop tests cover
+OSSL_PARAM record returns and scalar widths, time_t, IPv4/IPv6 address formatting,
+BIO backpressure, ASN.1 time boundaries, and isolated provider reloads. OpenSSL 4.x
+adds SKEY and SKEYMGMT reference-counting tests.
+
+The runner checks that every discovered test executes, rejects warnings and failed
+or ignored tests, and checks process termination as well as the test summary. Build
+outputs and logs are written to
+`%LOCALAPPDATA%\DelphiLibOpenSSL-validation`.
 
 ## License
 

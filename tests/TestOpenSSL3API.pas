@@ -2440,35 +2440,20 @@ end;
 
 procedure TTestSSLSessionDup.Test_SSL_SESSION_dup;
 var
-  Ctx: SSL_CTX_ptr;
-  S: SSL_ptr;
-  Sess, SessDup: SSL_SESSION_ptr;
+  Session, CopySession: SSL_SESSION_ptr;
 begin
-  Ctx := SSL_CTX_new(TLS_client_method);
-  Assert.IsNotNull(Ctx);
+  Session := SSL_SESSION_new;
+  Assert.IsNotNull(Session);
   try
-    S := SSL_new(Ctx);
-    Assert.IsNotNull(S);
+    CopySession := SSL_SESSION_dup(Session);
+    Assert.IsNotNull(CopySession, 'Duplicate an allocated session');
     try
-      Sess := SSL_get1_session(S);
-      if Sess <> nil then
-      begin
-        SessDup := SSL_SESSION_dup(Sess);
-        Assert.IsNotNull(SessDup, 'SSL_SESSION_dup should return non-nil');
-        SSL_SESSION_free(SessDup);
-        SSL_SESSION_free(Sess);
-      end
-      else
-      begin
-        // No session yet — just verify the function is callable
-        // by passing nil (should return nil without crashing)
-        Assert.Pass('No active session to dup — function linkage verified');
-      end;
+      Assert.IsTrue(CopySession <> Session);
     finally
-      SSL_free(S);
+      SSL_SESSION_free(CopySession);
     end;
   finally
-    SSL_CTX_free(Ctx);
+    SSL_SESSION_free(Session);
   end;
 end;
 

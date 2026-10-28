@@ -81,10 +81,18 @@ exit /b %errorlevel%
       [IO.File]::WriteAllText("$out\stderr.log", $stderr.GetAwaiter().GetResult())
       Write-Output "b$branch-$name EXIT=$($p.ExitCode) DIAGNOSTICS=$warnings $out"
       Select-String "$out\run.log" -Pattern 'Results:|FAIL:|Runtime error' | ForEach-Object Line
+      $runText = Get-Content -LiteralPath "$out\run.log" -Raw
+      $discovered = [regex]::Match($runText, '=== OpenSSL3 Tests: (\d+) active of (\d+) total ===')
+      $results = [regex]::Match($runText, '=== Results: (\d+) passed, 0 failed, 0 errors, 0 ignored ===')
+      $minimumTests = if ($branch -eq 4) { 113 } else { 111 }
+      $complete = $discovered.Success -and $results.Success -and
+        ([int]$discovered.Groups[1].Value -eq [int]$discovered.Groups[2].Value) -and
+        ([int]$results.Groups[1].Value -eq [int]$discovered.Groups[1].Value) -and
+        ([int]$results.Groups[1].Value -ge $minimumTests)
       if ($p.ExitCode -ne 0 -or $warnings -ne 0 -or
           (Get-Content -LiteralPath "$out\stderr.log" -Raw) -or
           (Select-String -Path "$out\run.log" -Pattern 'Runtime error|Access violation|Unhandled exception') -or
-          !(Select-String -Path "$out\run.log" -SimpleMatch -Pattern '=== Results: 89 passed, 0 failed, 0 errors, 0 ignored ===')) {
+          !$complete) {
         $failed = $true
       }
     }
