@@ -80,3 +80,9 @@ __recovery/
 
 # Boss dependency manager vendor folder https://github.com/HashLoad/boss
 modules/
+
+.ai-factory/
+
+# Extracted OpenSSL source working dirs (reproducible from c_src/*.zip).
+# Only the .zip archives are tracked; the expanded trees are build inputs.
+c_src/openssl-openssl-*/

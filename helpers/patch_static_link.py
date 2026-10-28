@@ -68,6 +68,7 @@ PATCHED_FILES = [
     'ssl/methods.c',
     'include/openssl/err.h.in',
     'crypto/x509/v3_ac_tgt.c',
+    'crypto/lhash/lhash.c',
 ]
 
 # Files that are ALSO in patch_c89.py PATCHED_FILES.
@@ -349,7 +350,10 @@ def patch_err_h(content):
 V3_AC_TGT_MARKER = 'FIX_W1028_V3_AC_TGT'
 
 # Exact text of the two static ASN1_SEQUENCE blocks (lines 43-55 of v3_ac_tgt.c)
-_V3_AC_TGT_OLD = (
+# OpenSSL 3.x uses 4-space indent before ASN1_SEQUENCE(OSSL_OBJECT_DIGEST_INFO);
+# OpenSSL 4.x removed that indent.  Both variants are tried so the patcher works
+# on either branch without per-branch configuration.
+_V3_AC_TGT_OLD_3X = (
     'ASN1_SEQUENCE(OSSL_ISSUER_SERIAL) = {\n'
     '    ASN1_SEQUENCE_OF(OSSL_ISSUER_SERIAL, issuer, GENERAL_NAME),\n'
     '    ASN1_EMBED(OSSL_ISSUER_SERIAL, serial, ASN1_INTEGER),\n'
@@ -357,6 +361,22 @@ _V3_AC_TGT_OLD = (
     '} static_ASN1_SEQUENCE_END(OSSL_ISSUER_SERIAL)\n'
     '\n'
     '    ASN1_SEQUENCE(OSSL_OBJECT_DIGEST_INFO)\n'
+    '    = {\n'
+    '          ASN1_EMBED(OSSL_OBJECT_DIGEST_INFO, digestedObjectType, ASN1_ENUMERATED),\n'
+    '          ASN1_OPT(OSSL_OBJECT_DIGEST_INFO, otherObjectTypeID, ASN1_OBJECT),\n'
+    '          ASN1_EMBED(OSSL_OBJECT_DIGEST_INFO, digestAlgorithm, X509_ALGOR),\n'
+    '          ASN1_EMBED(OSSL_OBJECT_DIGEST_INFO, objectDigest, ASN1_BIT_STRING),\n'
+    '      } static_ASN1_SEQUENCE_END(OSSL_OBJECT_DIGEST_INFO)'
+)
+
+_V3_AC_TGT_OLD_4X = (
+    'ASN1_SEQUENCE(OSSL_ISSUER_SERIAL) = {\n'
+    '    ASN1_SEQUENCE_OF(OSSL_ISSUER_SERIAL, issuer, GENERAL_NAME),\n'
+    '    ASN1_EMBED(OSSL_ISSUER_SERIAL, serial, ASN1_INTEGER),\n'
+    '    ASN1_OPT(OSSL_ISSUER_SERIAL, issuerUID, ASN1_BIT_STRING),\n'
+    '} static_ASN1_SEQUENCE_END(OSSL_ISSUER_SERIAL)\n'
+    '\n'
+    'ASN1_SEQUENCE(OSSL_OBJECT_DIGEST_INFO)\n'
     '    = {\n'
     '          ASN1_EMBED(OSSL_OBJECT_DIGEST_INFO, digestedObjectType, ASN1_ENUMERATED),\n'
     '          ASN1_OPT(OSSL_OBJECT_DIGEST_INFO, otherObjectTypeID, ASN1_OBJECT),\n'
@@ -379,13 +399,69 @@ def patch_v3_ac_tgt_c(content):
     if V3_AC_TGT_MARKER in content:
         return content  # already patched
 
-    if _V3_AC_TGT_OLD not in content:
+    # Try 4.x format first (no leading spaces before second ASN1_SEQUENCE),
+    # then fall back to 3.x format (4-space indent).
+    if _V3_AC_TGT_OLD_4X in content:
+        old = _V3_AC_TGT_OLD_4X
+    elif _V3_AC_TGT_OLD_3X in content:
+        old = _V3_AC_TGT_OLD_3X
+    else:
         print("  [WARN] v3_ac_tgt.c anchor not found — source may have changed")
         # Don't increment errors — non-fatal (cosmetic W1028 only)
         return content
 
-    content = content.replace(_V3_AC_TGT_OLD, _V3_AC_TGT_NEW, 1)
+    content = content.replace(old, _V3_AC_TGT_NEW, 1)
     return content
+
+# ---------------------------------------------------------------------------
+# Patch 6 — crypto/lhash/lhash.c: guard contract() against down_load == 0
+# ---------------------------------------------------------------------------
+# OBJ_NAME_cleanup() sets lh->down_load = 0 before calling OPENSSL_LH_doall()
+# intending to disable table contraction during iteration.  However when the
+# LAST entry is deleted, num_items reaches 0 and the contraction condition
+# evaluates as:
+#   down_load >= (num_items * LH_LOAD_MULT / num_nodes)
+#   0         >=  0                                      → TRUE
+# contract() fires, reallocating lh->b to a smaller array.  The caller's loop
+# still uses the old num_nodes upper bound, so subsequent iterations access
+# out-of-bounds indices in the new array.  With EurekaLog's debug allocator
+# filling freed memory with non-zero bytes, reading lh->b[oob] returns garbage
+# which is then treated as an OPENSSL_LH_NODE* → use-after-free crash.
+#
+# Fix: add  lh->down_load > 0  guard so down_load=0 truly disables contraction.
+
+LHASH_C_MARKER = 'FIX_DOWN_LOAD_ZERO'
+
+
+def patch_lhash_c(content):
+    """Guard OPENSSL_LH_delete contract() call against down_load == 0."""
+    if LHASH_C_MARKER in content:
+        return content  # already patched
+
+    old = (
+        '    lh->num_items--;\n'
+        '    if ((lh->num_nodes > MIN_NODES) && (lh->down_load >= (lh->num_items * LH_LOAD_MULT / lh->num_nodes)))\n'
+        '        contract(lh);'
+    )
+    new = (
+        '    lh->num_items--;\n'
+        '    /* ' + LHASH_C_MARKER + ': down_load=0 means "never contract" (used by\n'
+        '     * OBJ_NAME_cleanup to prevent table shrinkage during doall iteration).\n'
+        '     * Without this guard, 0 >= (0 * LH_LOAD_MULT / num_nodes) = 0 >= 0 = TRUE\n'
+        '     * fires contract() on the last deletion, reallocating lh->b while the\n'
+        "     * caller's loop still holds the old num_nodes upper bound → OOB read. */\n"
+        '    if ((lh->num_nodes > MIN_NODES) && lh->down_load > 0 &&\n'
+        '        (lh->down_load >= (lh->num_items * LH_LOAD_MULT / lh->num_nodes)))\n'
+        '        contract(lh);'
+    )
+
+    if old not in content:
+        print("  [ERROR] OPENSSL_LH_delete contract() anchor not found in crypto/lhash/lhash.c")
+        stats.errors += 1
+        return content
+
+    return content.replace(old, new, 1)
+
 
 # ---------------------------------------------------------------------------
 # Orchestration
@@ -437,6 +513,10 @@ def run_all_patches():
         'crypto/x509/v3_ac_tgt.c',
         'Patch 5: crypto/x509/v3_ac_tgt.c — remove duplicate ASN1 COMDAT',
         patch_v3_ac_tgt_c)
+    apply_single_patch(
+        'crypto/lhash/lhash.c',
+        'Patch 6: crypto/lhash/lhash.c — guard contract() against down_load == 0',
+        patch_lhash_c)
 
 
 def cmd_apply():
@@ -534,6 +614,7 @@ MARKERS = {
     'ssl/methods.c': METHODS_MARKER,
     'include/openssl/err.h.in': ERR_H_MARKER,
     'crypto/x509/v3_ac_tgt.c': V3_AC_TGT_MARKER,
+    'crypto/lhash/lhash.c': LHASH_C_MARKER,
 }
 
 

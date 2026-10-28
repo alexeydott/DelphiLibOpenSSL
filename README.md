@@ -92,7 +92,7 @@ The project supports two OpenSSL branches simultaneously:
 | Branch | Source Path | Object Dir | Pascal Define |
 |--------|------------|------------|---------------|
 | **3.x** | `c_src/openssl-openssl-3.6.1/` | `obj3/` | `OPENSSL_3X` |
-| **4.x** _(default)_ | `c_src/openssl-openssl-4.0.0/` | `obj4/` | `OPENSSL_4X` |
+| **4.x** _(default)_ | `c_src/openssl-openssl-4.1.0/` | `obj4/` | `OPENSSL_4X` |
 
 **In Pascal:** set `{$DEFINE OPENSSL_3X}` or `{$DEFINE OPENSSL_4X}` at the top of `libOpenSSL3.pas`.
 Only one may be active at a time (a compile-time guard enforces this).
@@ -134,7 +134,7 @@ set "VS_BUILD=D:\VisualStudio2019\VC\Auxiliary\Build"
 | Variable | How it's set | Example (branch 4) |
 |----------|-------------|---------------------|
 | `OPENSSL_BRANCH` | Environment or default `4` | `4` |
-| `OPENSSL_SRC` | Auto from branch | `c_src\openssl-openssl-4.0.0` |
+| `OPENSSL_SRC` | Auto from branch | `c_src\openssl-openssl-4.1.0` |
 | `OBJ_DIR` | Auto from branch | `obj4` |
 | `RSVARS` | Per target | `...\rsvars.bat` or `...\vcvars64.bat` |
 | `OBJ_OUT` | Per target | `obj4\win64\vc` |
@@ -187,6 +187,8 @@ build_openssl3_cbuilder_classic_win32.bat
 | `ensure_bcc32_classic_conf.py` | bcc32 classic | Add `BC-32-classic` target to OpenSSL `50-cppbuilder.conf` |
 | `gen_case_collision_fixes.py` | bcc32, bcc32c, msvc32 | Verify / generate `#define` renames for case-colliding symbols |
 | `openssl_fix_case_collisions.h` | bcc32c, bcc64, msvc32, msvc64 | C header force-included via `/FI` — renames case-colliding internals |
+| `patch_coff_symbol.py` | bcc64 (Win64) | Demote a symbol from GLOBAL → LOCAL in COFF/ELF `.obj` to resolve `W1028` linker conflicts; `--scan` / `--demote` |
+| `patch_omf_symbol.py` | bcc32 (Win32) | Rename a symbol inside an OMF `.obj` (updates length-prefixed names, record lengths, checksums); `--scan` |
 | `ossl3_ucrt_helper_win64.obj` | msvc64 | Pre-compiled UCRT shim stubs copied into Win64 output |
 | `ossl3_ucrt_helper_win64.c` | _(reference)_ | C source for the UCRT shim (rebuild manually if needed) |
 

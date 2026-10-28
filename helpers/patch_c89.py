@@ -56,7 +56,9 @@ PATCHED_FILES = [
     'crypto/rsa/rsa_sp800_56b_check.c',
     'crypto/sha/sha512.c',
     'crypto/srp/srp_lib.c',
+    'crypto/pkcs7/pk7_doit.c',
     'crypto/stack/stack.c',
+    'crypto/threads_win.c',
     'crypto/ui/ui_openssl.c',
     'crypto/x509/v3_purp.c',
     'crypto/x509/x509_lu.c',
@@ -67,9 +69,16 @@ PATCHED_FILES = [
     'providers/implementations/kdfs/ikev2kdf.c',
     'providers/implementations/keymgmt/dsa_kmgmt.c',
     'providers/implementations/keymgmt/ec_kmgmt.c',
+    'providers/implementations/keymgmt/rsa_kmgmt.c',
+    'ssl/quic/qlog.c',
     'ssl/quic/quic_txpim.c',
     'ssl/s3_lib.c',
     'ssl/ssl_ciph.c',
+    'ssl/ssl_lib.c',
+    'ssl/ssl_sess.c',
+    'ssl/statem/extensions_srvr.c',
+    'ssl/statem/statem_lib.c',
+    'ssl/t1_enc.c',
     'ssl/t1_lib.c',
 ]
 
@@ -339,30 +348,22 @@ def patch_mixed_declarations():
     ])
 
     # --- crypto/evp/encode.c ---
-    # Two wrap_cnt declarations after statements
+    # Two wrap_cnt declarations after statements; hoist to function level.
+    # 4.0.0 final: declarations are int i; size_t j; (not int i, j;)
     apply_text('crypto/evp/encode.c', [
-        # Inner block: move int wrap_cnt before statements
+        # Hoist wrap_cnt to function-level declarations (before size_t j)
         (
-            '    if (ctx->num != 0) {\n'
-            '        i = EVP_ENCODE_B64_LENGTH - ctx->num;\n'
-            '        memcpy(&(ctx->enc_data[ctx->num]), in, i);\n'
-            '        in += i;\n'
-            '        inl -= i;\n'
-            '        int wrap_cnt = 0;',
-            '    if (ctx->num != 0) {\n'
-            '        int wrap_cnt;\n'
-            '        i = EVP_ENCODE_B64_LENGTH - ctx->num;\n'
-            '        memcpy(&(ctx->enc_data[ctx->num]), in, i);\n'
-            '        in += i;\n'
-            '        inl -= i;\n'
-            '        wrap_cnt = 0;',
+            '    int i;\n    size_t j;\n    size_t total = 0;',
+            '    int i;\n    int wrap_cnt;\n    size_t j;\n    size_t total = 0;',
         ),
-        # Outer scope: add int wrap_cnt to function declarations
+        # Inner block: strip type from mid-block declaration (now at function level)
         (
-            '    int i, j;\n    size_t total = 0;',
-            '    int i, j;\n    int wrap_cnt;\n    size_t total = 0;',
+            '        inl -= i;\n'
+            '        int wrap_cnt = 0;\n',
+            '        inl -= i;\n'
+            '        wrap_cnt = 0;\n',
         ),
-        # Replace the outer int wrap_cnt = 0 with just assignment
+        # Outer scope: strip type from post-if-block declaration
         (
             '    }\n    int wrap_cnt = 0;',
             '    }\n    wrap_cnt = 0;',
@@ -423,32 +424,12 @@ def patch_mixed_declarations():
     ])
 
     # --- crypto/x509/v3_purp.c ---
-    # STACK_OF(IPAddressFamily) and ASIdentifiers_st after statements
-    # Must add declarations to the function scope first, then strip types
-    apply_text('crypto/x509/v3_purp.c', [
-        (
-            '    STACK_OF(DIST_POINT) *tmp_crldp = NULL;\n'
-            '    X509_SIG_INFO tmp_siginf;',
-            '    STACK_OF(DIST_POINT) *tmp_crldp = NULL;\n'
-            '    X509_SIG_INFO tmp_siginf;\n'
-            '#ifndef OPENSSL_NO_RFC3779\n'
-            '    STACK_OF(IPAddressFamily) *tmp_rfc3779_addr;\n'
-            '    struct ASIdentifiers_st *tmp_rfc3779_asid;\n'
-            '#endif',
-        ),
-        (
-            '    STACK_OF(IPAddressFamily) *tmp_rfc3779_addr\n'
-            '        = X509_get_ext_d2i(',
-            '    tmp_rfc3779_addr\n'
-            '        = X509_get_ext_d2i(',
-        ),
-        (
-            '    struct ASIdentifiers_st *tmp_rfc3779_asid\n'
-            '        = X509_get_ext_d2i(',
-            '    tmp_rfc3779_asid\n'
-            '        = X509_get_ext_d2i(',
-        ),
-    ])
+    # NOTE: In OpenSSL 4.1.0 the tmp_rfc3779_addr / tmp_rfc3779_asid
+    # declarations were hoisted to the top of ossl_x509v3_cache_extensions()
+    # upstream (inside #ifndef OPENSSL_NO_RFC3779), so the C89 hoist patch
+    # that was needed for 4.0.0 no longer applies — re-adding the
+    # declarations produced E2238 "Multiple declaration".  The C99 for-loop
+    # declarations in this file are still handled by category 1.
 
     # --- providers/implementations/keymgmt/dsa_kmgmt.c ---
     apply_text('providers/implementations/keymgmt/dsa_kmgmt.c', [
@@ -499,6 +480,201 @@ def patch_mixed_declarations():
         (
             '        const EVP_MD *md = EVP_MD_fetch(',
             '        md = EVP_MD_fetch(',
+        ),
+    ])
+
+    # --- crypto/threads_win.c ---
+    # C99 mid-block declaration introduced in OpenSSL 4.1.0 RCU-lock code:
+    #   ossl_unused int r = CRYPTO_THREAD_write_lock(lock->rw_lock);
+    # The value of r is never read (only the side effect of acquiring the
+    # lock is wanted).  Classic bcc32 (C89) rejects declarations after
+    # statements.  Cast to (void) so it becomes a plain statement.
+    apply_text('crypto/threads_win.c', [
+        (
+            '    /* This cannot fail, avoid unused result warning */\n'
+            '    ossl_unused int r = CRYPTO_THREAD_write_lock(lock->rw_lock);',
+            '    /* This cannot fail, avoid unused result warning */\n'
+            '    (void)CRYPTO_THREAD_write_lock(lock->rw_lock);',
+        ),
+    ])
+
+    # --- crypto/pkcs7/pk7_doit.c ---
+    # OpenSSL 4.1.0 added C99 mid-block declarations in two PKCS7 functions.
+    # Hoist them to the function-level declaration block (C89) and keep the
+    # original assignments at the use site.
+    apply_text('crypto/pkcs7/pk7_doit.c', [
+        # PKCS7_dataInit: hoist os_data / os_len to function top
+        (
+            '    const PKCS7_CTX *p7_ctx;\n'
+            '    OSSL_LIB_CTX *libctx;\n'
+            '    const char *propq;\n'
+            '\n'
+            '    if (p7 == NULL) {',
+            '    const PKCS7_CTX *p7_ctx;\n'
+            '    OSSL_LIB_CTX *libctx;\n'
+            '    const char *propq;\n'
+            '    const unsigned char *os_data;\n'
+            '    size_t os_len;\n'
+            '\n'
+            '    if (p7 == NULL) {',
+        ),
+        # PKCS7_dataInit: strip the mid-block types (now assigned, not declared)
+        (
+            '                BIO_set_mem_eof_return(bio, 0);\n'
+            '                const unsigned char *os_data = ASN1_STRING_get0_data(os);\n'
+            '                size_t os_len = ASN1_STRING_get_length(os);',
+            '                BIO_set_mem_eof_return(bio, 0);\n'
+            '                os_data = ASN1_STRING_get0_data(os);\n'
+            '                os_len = ASN1_STRING_get_length(os);',
+        ),
+        # PKCS7_signatureVerify: hoist sig_data / sig_len to function top
+        (
+            '    const PKCS7_CTX *ctx = ossl_pkcs7_get0_ctx(p7);\n'
+            '    OSSL_LIB_CTX *libctx = ossl_pkcs7_ctx_get0_libctx(ctx);\n'
+            '    const char *propq = ossl_pkcs7_ctx_get0_propq(ctx);\n'
+            '\n'
+            '    mdc_tmp = EVP_MD_CTX_new();',
+            '    const PKCS7_CTX *ctx = ossl_pkcs7_get0_ctx(p7);\n'
+            '    OSSL_LIB_CTX *libctx = ossl_pkcs7_ctx_get0_libctx(ctx);\n'
+            '    const char *propq = ossl_pkcs7_ctx_get0_propq(ctx);\n'
+            '    const unsigned char *sig_data;\n'
+            '    size_t sig_len;\n'
+            '\n'
+            '    mdc_tmp = EVP_MD_CTX_new();',
+        ),
+        # PKCS7_signatureVerify: strip the mid-block types (now assigned, not declared)
+        (
+            '    const unsigned char *sig_data = ASN1_STRING_get0_data(os);\n'
+            '    size_t sig_len = ASN1_STRING_get_length(os);\n'
+            '    if (sig_len > INT_MAX) {',
+            '    sig_data = ASN1_STRING_get0_data(os);\n'
+            '    sig_len = ASN1_STRING_get_length(os);\n'
+            '    if (sig_len > INT_MAX) {',
+        ),
+    ])
+
+    # --- ssl/ssl_lib.c ---
+    # SSL_get_peer_addr (new in OpenSSL 4.1.0) declares SSL_CONNECTION *sc
+    # after the QUIC early-return, which C89 rejects (E2140).  Hoist the
+    # declaration to the function top and keep the assignment in place.
+    # The type is always available (statem.h), so the unconditional top
+    # declaration is safe even when the DTLS path is compiled out.
+    apply_text('ssl/ssl_lib.c', [
+        (
+            'int SSL_get_peer_addr(SSL *ssl, BIO_ADDR *peer_addr)\n'
+            '{\n'
+            '#ifndef OPENSSL_NO_QUIC\n'
+            '    if (IS_QUIC(ssl))\n'
+            '        return ossl_quic_get_peer_addr(ssl, peer_addr);\n'
+            '#endif\n'
+            '\n'
+            '#if !defined(OPENSSL_NO_DTLS) && !defined(OPENSSL_NO_SOCK)\n'
+            '    SSL_CONNECTION *sc = SSL_CONNECTION_FROM_SSL(ssl);\n',
+            'int SSL_get_peer_addr(SSL *ssl, BIO_ADDR *peer_addr)\n'
+            '{\n'
+            '    SSL_CONNECTION *sc;\n'
+            '#ifndef OPENSSL_NO_QUIC\n'
+            '    if (IS_QUIC(ssl))\n'
+            '        return ossl_quic_get_peer_addr(ssl, peer_addr);\n'
+            '#endif\n'
+            '\n'
+            '#if !defined(OPENSSL_NO_DTLS) && !defined(OPENSSL_NO_SOCK)\n'
+            '    sc = SSL_CONNECTION_FROM_SSL(ssl);\n',
+        ),
+    ])
+
+    # --- ssl/ssl_sess.c ---
+    # SSL_CTX_add_session (new in OpenSSL 4.1.0) declares evicted_head after a
+    # statement, which C89 rejects (E2140).  Hoist the declaration to the
+    # function top and keep the NULL assignment in place.
+    apply_text('ssl/ssl_sess.c', [
+        (
+            'int SSL_CTX_add_session(SSL_CTX *ctx, SSL_SESSION *c)\n'
+            '{\n'
+            '    int ret = 0;\n'
+            '    SSL_SESSION *s;\n',
+            'int SSL_CTX_add_session(SSL_CTX *ctx, SSL_SESSION *c)\n'
+            '{\n'
+            '    int ret = 0;\n'
+            '    SSL_SESSION *s;\n'
+            '    SSL_SESSION *evicted_head;\n',
+        ),
+        (
+            '     * once the lock is released.\n'
+            '     */\n'
+            '    SSL_SESSION *evicted_head = NULL;\n',
+            '     * once the lock is released.\n'
+            '     */\n'
+            '    evicted_head = NULL;\n',
+        ),
+    ])
+
+    # --- ssl/t1_enc.c ---
+    # tls1_PRF (OpenSSL 4.1.0) declares mdname and params after a statement
+    # inside #ifdef OPENSSL_HAVE_TLS1PRF, which C89 rejects (E2140).  Hoist
+    # both to the function top and keep the assignments in place.
+    apply_text('ssl/t1_enc.c', [
+        (
+            '    const EVP_MD *md = ssl_prf_md(s);\n'
+            '    EVP_KDF_CTX *kctx = NULL;\n',
+            '    const char *mdname;\n'
+            '    OSSL_PARAM params[9], *p;\n'
+            '    const EVP_MD *md = ssl_prf_md(s);\n'
+            '    EVP_KDF_CTX *kctx = NULL;\n',
+        ),
+        (
+            '    const char *mdname = EVP_MD_get0_name(md);\n'
+            '    OSSL_PARAM params[9], *p = params;\n',
+            '    mdname = EVP_MD_get0_name(md);\n'
+            '    p = params;\n',
+        ),
+    ])
+
+    # --- ssl/statem/statem_lib.c ---
+    # tls_common_finish_mac declares srvhellorandom_offs after statements,
+    # which C89 rejects (E2140).  Hoist to the function top.
+    apply_text('ssl/statem/statem_lib.c', [
+        (
+            '    size_t hdr_len = 0;\n',
+            '    size_t hdr_len = 0;\n'
+            '    size_t srvhellorandom_offs;\n',
+        ),
+        (
+            '    const size_t srvhellorandom_offs = hdr_len + 2;\n',
+            '    srvhellorandom_offs = hdr_len + 2;\n',
+        ),
+    ])
+
+    # --- ssl/statem/extensions_srvr.c ---
+    # tls_parse_ctos_status_request declares sctx after statements, which
+    # C89 rejects (E2140).  Hoist to the function top.
+    apply_text('ssl/statem/extensions_srvr.c', [
+        (
+            '    PACKET responder_id_list, exts;\n',
+            '    SSL_CTX *sctx;\n'
+            '    PACKET responder_id_list, exts;\n',
+        ),
+        (
+            '    SSL_CTX *sctx = SSL_CONNECTION_GET_CTX(s);\n'
+            '    if (sctx == NULL || sctx->ext.status_cb == NULL)\n',
+            '    sctx = SSL_CONNECTION_GET_CTX(s);\n'
+            '    if (sctx == NULL || sctx->ext.status_cb == NULL)\n',
+        ),
+    ])
+
+    # --- ssl/quic/qlog.c ---
+    # ossl_qlog_new_from_env declares int n after statements, which C89
+    # rejects (E2140).  Hoist to the function top.  (The int n at the top of
+    # the for-loop body is a legal C89 declaration.)
+    apply_text('ssl/quic/qlog.c', [
+        (
+            '    size_t i, l, strl;\n',
+            '    size_t i, l, strl;\n'
+            '    int n;\n',
+        ),
+        (
+            '    int n = snprintf(filename + l, strl - l, "_%s.sqlog",\n',
+            '    n = snprintf(filename + l, strl - l, "_%s.sqlog",\n',
         ),
     ])
 
@@ -553,7 +729,11 @@ def patch_designated_initializers():
     ])
 
     # --- crypto/x509/x509_vpm.c ---
-    # Positional init for X509_VERIFY_PARAM (19 fields)
+    # Positional init for X509_VERIFY_PARAM (19 fields).
+    # OpenSSL 4.1.0 table has 7 entries (a "smime_encrypt" entry was added
+    # relative to 4.0.0).  TAIL supplies the 11 trailing fields (policies,
+    # hosts, validate_host, ips, validate_ip, rfc822s, validate_rfc822,
+    # smtputf8s, validate_smtputf8, hostflags, peername) = 9 NULLs + 0 + NULL.
     TAIL = (', NULL, NULL, NULL, NULL, NULL, NULL, '
             'NULL, NULL, NULL, 0, NULL }')
     apply_text('crypto/x509/x509_vpm.c', [
@@ -580,32 +760,28 @@ def patch_designated_initializers():
             '        .auth_level = -1,\n'
             '    },\n'
             '    {\n'
-            '        .name = "smime_encrypt",'
-            ' /* S/MIME encryption parameters */\n'
+            '        .name = "smime_encrypt", /* S/MIME encryption parameters */\n'
             '        .purpose = X509_PURPOSE_SMIME_ENCRYPT,\n'
             '        .trust = X509_TRUST_EMAIL,\n'
             '        .depth = -1,\n'
             '        .auth_level = -1,\n'
             '    },\n'
             '    {\n'
-            '        .name = "smime_sign",'
-            ' /* S/MIME signature parameters */\n'
+            '        .name = "smime_sign", /* S/MIME signature parameters */\n'
             '        .purpose = X509_PURPOSE_SMIME_SIGN,\n'
             '        .trust = X509_TRUST_EMAIL,\n'
             '        .depth = -1,\n'
             '        .auth_level = -1,\n'
             '    },\n'
             '    {\n'
-            '        .name = "ssl_client",'
-            ' /* SSL/TLS client parameters */\n'
+            '        .name = "ssl_client", /* SSL/TLS client parameters */\n'
             '        .purpose = X509_PURPOSE_SSL_CLIENT,\n'
             '        .trust = X509_TRUST_SSL_CLIENT,\n'
             '        .depth = -1,\n'
             '        .auth_level = -1,\n'
             '    },\n'
             '    {\n'
-            '        .name = "ssl_server",'
-            ' /* SSL/TLS server parameters */\n'
+            '        .name = "ssl_server", /* SSL/TLS server parameters */\n'
             '        .purpose = X509_PURPOSE_SSL_SERVER,\n'
             '        .trust = X509_TRUST_SSL_SERVER,\n'
             '        .depth = -1,\n'
@@ -645,6 +821,46 @@ def patch_designated_initializers():
             '};',
         ),
     ])
+
+    # --- providers/implementations/keymgmt/rsa_kmgmt.c ---
+    # Two const arrays use C99 indexed initializers ([RSA_IMEXPORT_TYPE_x] = { }).
+    # Classic bcc32 rejects them (E2188/E2141).  The enum is NONE=0, OTHER=1,
+    # KEY=2, ALL=3, so the positional aggregate below (index 0 left zero) is
+    # value-identical.
+    for sym, pre in [('rsa_imexport_types', 'rsa'),
+                     ('rsapss_imexport_types', 'rsapss')]:
+        old = (
+            'static const struct rsa_imexport_types_st\n'
+            f'    {sym}[RSA_IMEXPORT_TYPE_COUNT]\n'
+            '    = {\n'
+            '          [RSA_IMEXPORT_TYPE_OTHER] = {\n'
+            f'              {pre}_other_import_types_list,\n'
+            f'              {pre}_other_import_types_decoder,\n'
+            f'              {pre}_other_export_types_list,\n'
+            '          },\n'
+            '          [RSA_IMEXPORT_TYPE_KEY] = {\n'
+            f'              {pre}_key_import_types_list,\n'
+            f'              {pre}_key_import_types_decoder,\n'
+            f'              {pre}_key_export_types_list,\n'
+            '          },\n'
+            '          [RSA_IMEXPORT_TYPE_ALL] = {\n'
+            f'              {pre}_all_import_types_list,\n'
+            f'              {pre}_all_import_types_decoder,\n'
+            f'              {pre}_all_export_types_list,\n'
+            '          },\n'
+            '      };')
+        new = (
+            'static const struct rsa_imexport_types_st\n'
+            f'    {sym}[RSA_IMEXPORT_TYPE_COUNT] = {{\n'
+            '      { 0, NULL, 0 },\n'
+            f'      {{ {pre}_other_import_types_list, '
+            f'{pre}_other_import_types_decoder, {pre}_other_export_types_list }},\n'
+            f'      {{ {pre}_key_import_types_list, '
+            f'{pre}_key_import_types_decoder, {pre}_key_export_types_list }},\n'
+            f'      {{ {pre}_all_import_types_list, '
+            f'{pre}_all_import_types_decoder, {pre}_all_export_types_list }}\n'
+            '    };')
+        apply_text('providers/implementations/keymgmt/rsa_kmgmt.c', [(old, new)])
 
 
 # ---------------------------------------------------------------------------
@@ -788,46 +1004,55 @@ def patch_bignum_includes():
 
 def patch_ossl_param_arrays():
     print("\n=== Category 7: OSSL_PARAM_construct array initializers ===")
-
+    # ikev2kdf.c: three OSSL_PARAM arrays are initialized with
+    # OSSL_PARAM_construct_*() function calls (C99).  Classic bcc32 rejects
+    # non-constant array initializers (E2110 "Incompatible type conversion").
+    # Convert each to a plain sized declaration plus runtime element
+    # assignments (C89).  The two "md_name" sites are byte-identical, so all
+    # occurrences are replaced.
     rel = 'providers/implementations/kdfs/ikev2kdf.c'
-    patches = []
+    try:
+        content = read_file(rel)
+    except FileNotFoundError:
+        print(f"  [ERROR] not found: {rel}")
+        stats.errors += 1
+        return
 
-    # Instance 1 & 2: md_name  (in IKEV2_GEN and IKEV2_REKEY)
-    for _ in range(2):
-        patches.append((
-            '    OSSL_PARAM params[] = {\n'
-            '        OSSL_PARAM_construct_utf8_string("digest", md_name, 0),\n'
-            '        OSSL_PARAM_construct_end()\n'
-            '    };',
-            '    OSSL_PARAM params[2];\n'
-            '    params[0] = OSSL_PARAM_construct_utf8_string('
-            '"digest", md_name, 0);\n'
-            '    params[1] = OSSL_PARAM_construct_end();',
-        ))
-
-    # Instance 3: (char *)EVP_MD_name(evp_md) (in IKEV2_DKM)
-    patches.append((
+    md_name_old = (
         '    OSSL_PARAM params[] = {\n'
-        '        OSSL_PARAM_construct_utf8_string("digest",'
-        ' (char *)EVP_MD_name(evp_md), 0),\n'
+        '        OSSL_PARAM_construct_utf8_string("digest", md_name, 0),\n'
         '        OSSL_PARAM_construct_end()\n'
-        '    };',
+        '    };')
+    md_name_new = (
         '    OSSL_PARAM params[2];\n'
-        '    params[0] = OSSL_PARAM_construct_utf8_string("digest",'
-        ' (char *)EVP_MD_name(evp_md), 0);\n'
-        '    params[1] = OSSL_PARAM_construct_end();',
-    ))
+        '    params[0] = OSSL_PARAM_construct_utf8_string("digest", md_name, 0);\n'
+        '    params[1] = OSSL_PARAM_construct_end();')
 
-    apply_text(rel, patches)
+    evp_md_old = (
+        '    OSSL_PARAM params[] = {\n'
+        '        OSSL_PARAM_construct_utf8_string("digest", (char *)EVP_MD_name(evp_md), 0),\n'
+        '        OSSL_PARAM_construct_end()\n'
+        '    };')
+    evp_md_new = (
+        '    OSSL_PARAM params[2];\n'
+        '    params[0] = OSSL_PARAM_construct_utf8_string("digest", (char *)EVP_MD_name(evp_md), 0);\n'
+        '    params[1] = OSSL_PARAM_construct_end();')
 
+    n = 0
+    if md_name_old in content:
+        n += content.count(md_name_old)
+        content = content.replace(md_name_old, md_name_new)
+    if evp_md_old in content:
+        n += content.count(evp_md_old)
+        content = content.replace(evp_md_old, evp_md_new)
 
-# ---------------------------------------------------------------------------
-# Category 8 - Function pointer typedef CC fix
-# ---------------------------------------------------------------------------
-# Under bcc32 -pr (register convention), function pointer typedefs default
-# to register CC. When they store CRT functions (which are __cdecl via
-# headers), calling through the pointer uses wrong CC -> crash.
-
+    if n:
+        write_file(rel, content)
+        print(f"  [{n:2d} fix(es)] {rel}")
+        stats.patched += 1
+    else:
+        print(f"  [skip]      {rel}")
+        stats.skipped += 1
 def patch_funcptr_cdecl():
     print("\n=== Category 8: function pointer typedef __cdecl fix ===")
 
@@ -920,8 +1145,9 @@ def patch_init_c_atexit():
     old_func = 'static int win32atexit(void)\n{'
     new_func = 'static int __cdecl win32atexit(void)\n{'
     if old_func not in content:
-        print(f"  [ERROR] win32atexit anchor not found in {rel}")
-        stats.errors += 1
+        # win32atexit was removed in OpenSSL 4.0.0 — patch not needed
+        print(f"  [skip]      {rel} (win32atexit pattern not present in this version)")
+        stats.skipped += 1
         return
     content = content.replace(old_func, new_func, 1)
 

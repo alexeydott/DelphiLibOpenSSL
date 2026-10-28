@@ -26,12 +26,8 @@
 
 // === OpenSSL version selection ===
 // Uncomment ONE of the following:
-// {$DEFINE OPENSSL_3X}   // < uncomment for OpenSSL 3.x
-{$IFNDEF OPENSSL_3X}
-  {$IFNDEF OPENSSL_4X}
-    {$DEFINE OPENSSL_4X}  // < default: OpenSSL 4.x
-  {$ENDIF}
-{$ENDIF}
+// {$DEFINE OPENSSL_4X}   // < uncomment for OpenSSL 3.x
+{$DEFINE OPENSSL_4X}      // < default: OpenSSL 4.x
 
 {$IFDEF OPENSSL_3X}{$IFDEF OPENSSL_4X}
   'Error: Define exactly one of OPENSSL_3X or OPENSSL_4X'
@@ -80,26 +76,21 @@ uses
 //   prefix (_functionName). Objects are linked from obj3\win32\bcc32c or obj4\win32\bcc32c.
 //   Full bcc32c support requires cdecl external declarations - see TODO below.
 {$UNDEF C_COMPILER_BORLAND}
+{$UNDEF C_COMPILER_BORLAND_32}
+{$UNDEF C_COMPILER_BORLAND_64}
+{$UNDEF C_COMPILER_BCC32C}
 {$UNDEF C_COMPILER_MSC}
+{$UNDEF C_COMPILER_MSC_32}
+{$UNDEF C_COMPILER_MSC_64}
 {$UNDEF __CDECL}
 {$IFDEF CPUX86}
-   {$IFNDEF C_COMPILER_BORLAND_32}
-     {$IFNDEF C_COMPILER_BCC32C}
-       {$IFNDEF C_COMPILER_MSC_32}
-         {$DEFINE C_COMPILER_BORLAND_32}  // < Win32 default: bcc32 (register convention)
-       {$ENDIF}
-     {$ENDIF}
-   {$ENDIF}
-   {.$DEFINE C_COMPILER_BCC32C}       // < uncomment for bcc32c (cdecl + underscore)
-   {.$DEFINE C_COMPILER_MSC_32}       // < uncomment for MSVC Win32 (cdecl + underscore)
+   {$DEFINE C_COMPILER_BORLAND_32}  // < Win32 default: bcc32 (register convention)
+   {.$DEFINE C_COMPILER_BCC32C}     // < uncomment for bcc32c (cdecl + underscore)
+   {.$DEFINE C_COMPILER_MSC_32}     // < uncomment for MSVC Win32 (cdecl + underscore)
 {$ELSE}
 {$IFDEF CPUX64}
-   {$IFNDEF C_COMPILER_BORLAND_64}
-     {$IFNDEF C_COMPILER_MSC_64}
-       {$DEFINE C_COMPILER_MSC_64}      // < Win64 default: MSVC
-     {$ENDIF}
-   {$ENDIF}
-   {.$DEFINE C_COMPILER_BORLAND_64}   // < uncomment for bcc64 Win64
+   {$DEFINE C_COMPILER_MSC_64}      // < Win64 default: MSVC
+   {.$DEFINE C_COMPILER_BORLAND_64} // < uncomment for bcc64 Win64
 {$ELSE}
   'Error: C compiler for this CPU not yet $DEFINEd.'
 {$ENDIF}
@@ -6826,7 +6817,9 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
 {$ENDIF}
   function SSL_add1_to_CA_list(ssl: SSL_ptr; x: X509_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_add_client_CA(ssl: SSL_ptr; x: X509_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_add_expected_rpk(s: SSL_ptr; rpk: EVP_PKEY_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_add_expected_rpk(s: SSL_ptr; rpk: EVP_PKEY_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   procedure SSL_add_ssl_module; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_alert_desc_string(value: Integer): PAnsiChar; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_alert_desc_string_long(value: Integer): PAnsiChar; {$IFDEF __CDECL}cdecl;{$ENDIF}
@@ -6881,7 +6874,9 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
 {$ENDIF}
 {$ENDIF}
 {$ENDIF}
-  function SSL_get0_client_cert_type(s: SSL_ptr; t: PPByte; len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_get0_client_cert_type(s: SSL_ptr; t: PPByte; len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_get0_connection(s: SSL_ptr): SSL_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get0_dane(ssl: SSL_ptr): Pointer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get0_dane_authority(s: SSL_ptr; mcert: Pointer; mspki: Pointer): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
@@ -6892,10 +6887,14 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
   procedure SSL_get0_next_proto_negotiated(s: SSL_ptr; data: PPByte; len: PCardinal); {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get0_param(ssl: SSL_ptr): X509_VERIFY_PARAM_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get0_peer_certificate(s: SSL_ptr): X509_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_get0_peer_rpk(s: SSL_ptr): EVP_PKEY_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_get0_peer_rpk(s: SSL_ptr): EVP_PKEY_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_get0_peername(s: SSL_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get0_security_ex_data(s: SSL_ptr): Pointer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_get0_server_cert_type(s: SSL_ptr; t: PPByte; len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_get0_server_cert_type(s: SSL_ptr; t: PPByte; len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -6929,7 +6928,9 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
   function SSL_get_default_passwd_cb(s: SSL_ptr): Pointer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get_default_passwd_cb_userdata(s: SSL_ptr): Pointer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get_default_timeout(s: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_get_domain_flags(ssl: SSL_ptr; domain_flags: PUInt64): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_get_domain_flags(ssl: SSL_ptr; domain_flags: PUInt64): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_get_early_data_status(s: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get_event_timeout(s: SSL_ptr; tv: Pointer; is_infinite: PInteger): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get_ex_data_X509_STORE_CTX_idx: Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
@@ -6938,8 +6939,12 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
   function SSL_get_handshake_rtt(s: SSL_ptr; rtt: PUInt64): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get_key_update_type(s: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_get_max_early_data(s: SSL_ptr): Cardinal; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_get_negotiated_client_cert_type(s: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_get_negotiated_server_cert_type(s: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_get_negotiated_client_cert_type(s: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_get_negotiated_server_cert_type(s: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_get_num_tickets(s: SSL_ptr): NativeUInt; {$IFDEF __CDECL}cdecl;{$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -7035,7 +7040,9 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
   function SSL_set0_tmp_dh_pkey(s: SSL_ptr; dhpkey: EVP_PKEY_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   procedure SSL_set0_wbio(s: SSL_ptr; wbio: BIO_ptr); {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_set1_cert_comp_preference(ssl: SSL_ptr; algs: PInteger; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_set1_client_cert_type(s: SSL_ptr; val: PByte; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_set1_client_cert_type(s: SSL_ptr; val: PByte; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_set1_compressed_cert(ssl: SSL_ptr; algorithm: Integer; comp_data: PByte; comp_length: NativeUInt; orig_length: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -7067,7 +7074,9 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
 {$ENDIF}
 {$ENDIF}
   function SSL_set1_param(ssl: SSL_ptr; vpm: X509_VERIFY_PARAM_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_set1_server_cert_type(s: SSL_ptr; val: PByte; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_set1_server_cert_type(s: SSL_ptr; val: PByte; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_set_SSL_CTX(ssl: SSL_ptr; ctx: SSL_CTX_ptr): SSL_CTX_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
   procedure SSL_set_accept_state(s: SSL_ptr); {$IFDEF __CDECL}cdecl;{$ENDIF}
   procedure SSL_set_allow_early_data_cb(s: SSL_ptr; cb: Pointer; arg: Pointer); {$IFDEF __CDECL}cdecl;{$ENDIF}
@@ -7207,12 +7216,16 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
 {$ENDIF}
 {$ENDIF}
   function SSL_CTX_get0_certificate(ctx: SSL_CTX_ptr): X509_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_CTX_get0_client_cert_type(ctx: SSL_CTX_ptr; t: PPByte; len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_CTX_get0_client_cert_type(ctx: SSL_CTX_ptr; t: PPByte; len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_CTX_get0_ctlog_store(ctx: SSL_CTX_ptr): CTLOG_STORE_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_get0_param(ctx: SSL_CTX_ptr): X509_VERIFY_PARAM_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_get0_privatekey(ctx: SSL_CTX_ptr): EVP_PKEY_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_get0_security_ex_data(ctx: SSL_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_CTX_get0_server_cert_type(s: SSL_CTX_ptr; t: PPByte; len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_CTX_get0_server_cert_type(s: SSL_CTX_ptr; t: PPByte; len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_CTX_get1_compressed_cert(ctx: SSL_CTX_ptr; alg: Integer; data: PPByte; orig_len: PNativeUInt): NativeUInt; {$IFDEF __CDECL}cdecl;{$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -7224,7 +7237,9 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
   function SSL_CTX_get_cert_store(param: SSL_CTX_ptr): X509_STORE_ptr; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_get_default_passwd_cb(ctx: SSL_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_get_default_passwd_cb_userdata(ctx: SSL_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_CTX_get_domain_flags(ctx: SSL_CTX_ptr; domain_flags: PUInt64): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_CTX_get_domain_flags(ctx: SSL_CTX_ptr; domain_flags: PUInt64): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_CTX_get_keylog_callback(ctx: SSL_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_get_max_early_data(ctx: SSL_CTX_ptr): Cardinal; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_get_num_tickets(ctx: SSL_CTX_ptr): NativeUInt; {$IFDEF __CDECL}cdecl;{$ENDIF}
@@ -7253,7 +7268,9 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
   function SSL_CTX_set0_tmp_dh_pkey(ctx: SSL_CTX_ptr; dhpkey: EVP_PKEY_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_set1_cert_comp_preference(ctx: SSL_CTX_ptr; algs: PInteger; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   procedure SSL_CTX_set1_cert_store(param: SSL_CTX_ptr; param_: X509_STORE_ptr); {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_CTX_set1_client_cert_type(ctx: SSL_CTX_ptr; val: PByte; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_CTX_set1_client_cert_type(ctx: SSL_CTX_ptr; val: PByte; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_CTX_set1_compressed_cert(ctx: SSL_CTX_ptr; algorithm: Integer; comp_data: PByte; comp_length: NativeUInt; orig_length: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -7263,7 +7280,9 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
 {$ENDIF}
 {$ENDIF}
   function SSL_CTX_set1_param(ctx: SSL_CTX_ptr; vpm: X509_VERIFY_PARAM_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_CTX_set1_server_cert_type(ctx: SSL_CTX_ptr; val: PByte; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_CTX_set1_server_cert_type(ctx: SSL_CTX_ptr; val: PByte; len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   procedure SSL_CTX_set_allow_early_data_cb(ctx: SSL_CTX_ptr; cb: Pointer; arg: Pointer); {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_set_async_callback(ctx: SSL_CTX_ptr; callback: Pointer): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_set_async_callback_arg(ctx: SSL_CTX_ptr; arg: Pointer): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
@@ -7280,7 +7299,9 @@ function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external
   function SSL_CTX_set_default_verify_dir(ctx: SSL_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_set_default_verify_file(ctx: SSL_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_set_default_verify_store(ctx: SSL_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
-  function SSL_CTX_set_domain_flags(ctx: SSL_CTX_ptr; domain_flags: UInt64): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$IFDEF OPENSSL_3X}
+    function SSL_CTX_set_domain_flags(ctx: SSL_CTX_ptr; domain_flags: UInt64): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
+  {$ENDIF}
   function SSL_CTX_set_generate_session_id(ctx: SSL_CTX_ptr; cb: Pointer): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
   procedure SSL_CTX_set_keylog_callback(ctx: SSL_CTX_ptr; cb: Pointer); {$IFDEF __CDECL}cdecl;{$ENDIF}
   function SSL_CTX_set_max_early_data(ctx: SSL_CTX_ptr; max_early_data: Cardinal): Integer; {$IFDEF __CDECL}cdecl;{$ENDIF}
@@ -14762,12 +14783,16 @@ procedure SSL_CTX_get0_alpn_protos; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELS
 {$ENDIF}
 {$ENDIF}
 function SSL_CTX_get0_certificate; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get0_certificate';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_CTX_get0_client_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get0_client_cert_type';{$ENDIF}
+{$ENDIF}
 function SSL_CTX_get0_ctlog_store; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get0_ctlog_store';{$ENDIF}
 function SSL_CTX_get0_param; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get0_param';{$ENDIF}
 function SSL_CTX_get0_privatekey; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get0_privatekey';{$ENDIF}
 function SSL_CTX_get0_security_ex_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get0_security_ex_data';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_CTX_get0_server_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get0_server_cert_type';{$ENDIF}
+{$ENDIF}
 function SSL_CTX_get1_compressed_cert; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get1_compressed_cert';{$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -14782,7 +14807,9 @@ procedure SSL_CTX_get_client_CA_list; {$IFDEF C_COMPILER_BORLAND_32}external;{$E
 procedure SSL_CTX_get_client_cert_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get_client_cert_cb';{$ENDIF}
 function SSL_CTX_get_default_passwd_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get_default_passwd_cb';{$ENDIF}
 function SSL_CTX_get_default_passwd_cb_userdata; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get_default_passwd_cb_userdata';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_CTX_get_domain_flags; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get_domain_flags';{$ENDIF}
+{$ENDIF}
 procedure SSL_CTX_get_info_callback; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get_info_callback';{$ENDIF}
 function SSL_CTX_get_keylog_callback; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get_keylog_callback';{$ENDIF}
 function SSL_CTX_get_max_early_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_get_max_early_data';{$ENDIF}
@@ -14821,7 +14848,9 @@ procedure SSL_CTX_set0_security_ex_data; {$IFDEF C_COMPILER_BORLAND_32}external;
 function SSL_CTX_set0_tmp_dh_pkey; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set0_tmp_dh_pkey';{$ENDIF}
 function SSL_CTX_set1_cert_comp_preference; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set1_cert_comp_preference';{$ENDIF}
 procedure SSL_CTX_set1_cert_store; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set1_cert_store';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_CTX_set1_client_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set1_client_cert_type';{$ENDIF}
+{$ENDIF}
 function SSL_CTX_set1_compressed_cert; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set1_compressed_cert';{$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -14831,7 +14860,9 @@ function SSL_CTX_set1_echstore; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}ex
 {$ENDIF}
 {$ENDIF}
 function SSL_CTX_set1_param; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set1_param';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_CTX_set1_server_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set1_server_cert_type';{$ENDIF}
+{$ENDIF}
 procedure SSL_CTX_set_allow_early_data_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_allow_early_data_cb';{$ENDIF}
 function SSL_CTX_set_async_callback; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_async_callback';{$ENDIF}
 function SSL_CTX_set_async_callback_arg; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_async_callback_arg';{$ENDIF}
@@ -14854,7 +14885,9 @@ procedure SSL_CTX_set_default_read_buffer_len; {$IFDEF C_COMPILER_BORLAND_32}ext
 function SSL_CTX_set_default_verify_dir; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_default_verify_dir';{$ENDIF}
 function SSL_CTX_set_default_verify_file; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_default_verify_file';{$ENDIF}
 function SSL_CTX_set_default_verify_store; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_default_verify_store';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_CTX_set_domain_flags; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_domain_flags';{$ENDIF}
+{$ENDIF}
 function SSL_CTX_set_generate_session_id; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_generate_session_id';{$ENDIF}
 procedure SSL_CTX_set_keylog_callback; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_keylog_callback';{$ENDIF}
 function SSL_CTX_set_max_early_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_CTX_set_max_early_data';{$ENDIF}
@@ -14965,7 +14998,9 @@ function SSL_add1_ipaddr; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external
 function SSL_add1_to_CA_list; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_add1_to_CA_list';{$ENDIF}
 function SSL_add_client_CA; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_add_client_CA';{$ENDIF}
 procedure SSL_add_dir_cert_subjects_to_stack; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_add_dir_cert_subjects_to_stack';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_add_expected_rpk; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_add_expected_rpk';{$ENDIF}
+{$ENDIF}
 procedure SSL_add_file_cert_subjects_to_stack; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_add_file_cert_subjects_to_stack';{$ENDIF}
 procedure SSL_add_ssl_module; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_add_ssl_module';{$ENDIF}
 procedure SSL_add_store_cert_subjects_to_stack; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_add_store_cert_subjects_to_stack';{$ENDIF}
@@ -15027,7 +15062,9 @@ procedure SSL_get0_alpn_protos; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}ex
 {$ENDIF}
 {$ENDIF}
 {$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_get0_client_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_client_cert_type';{$ENDIF}
+{$ENDIF}
 function SSL_get0_connection; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_connection';{$ENDIF}
 function SSL_get0_dane; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_dane';{$ENDIF}
 function SSL_get0_dane_authority; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_dane_authority';{$ENDIF}
@@ -15039,11 +15076,15 @@ procedure SSL_get0_next_proto_negotiated; {$IFDEF C_COMPILER_BORLAND_32}external
 function SSL_get0_param; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_param';{$ENDIF}
 procedure SSL_get0_peer_CA_list; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_peer_CA_list';{$ENDIF}
 function SSL_get0_peer_certificate; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_peer_certificate';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_get0_peer_rpk; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_peer_rpk';{$ENDIF}
+{$ENDIF}
 procedure SSL_get0_peer_scts; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_peer_scts';{$ENDIF}
 function SSL_get0_peername; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_peername';{$ENDIF}
 function SSL_get0_security_ex_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_security_ex_data';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_get0_server_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get0_server_cert_type';{$ENDIF}
+{$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -15082,7 +15123,9 @@ function SSL_get_current_expansion; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELS
 function SSL_get_default_passwd_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_default_passwd_cb';{$ENDIF}
 function SSL_get_default_passwd_cb_userdata; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_default_passwd_cb_userdata';{$ENDIF}
 function SSL_get_default_timeout; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_default_timeout';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_get_domain_flags; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_domain_flags';{$ENDIF}
+{$ENDIF}
 function SSL_get_early_data_status; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_early_data_status';{$ENDIF}
 function SSL_get_event_timeout; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_event_timeout';{$ENDIF}
 function SSL_get_ex_data_X509_STORE_CTX_idx; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_ex_data_X509_STORE_CTX_idx';{$ENDIF}
@@ -15092,8 +15135,12 @@ function SSL_get_handshake_rtt; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}ex
 procedure SSL_get_info_callback; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_info_callback';{$ENDIF}
 function SSL_get_key_update_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_key_update_type';{$ENDIF}
 function SSL_get_max_early_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_max_early_data';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_get_negotiated_client_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_negotiated_client_cert_type';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_get_negotiated_server_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_negotiated_server_cert_type';{$ENDIF}
+{$ENDIF}
 function SSL_get_num_tickets; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_get_num_tickets';{$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -15194,7 +15241,9 @@ procedure SSL_set0_security_ex_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$EL
 function SSL_set0_tmp_dh_pkey; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set0_tmp_dh_pkey';{$ENDIF}
 procedure SSL_set0_wbio; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set0_wbio';{$ENDIF}
 function SSL_set1_cert_comp_preference; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set1_cert_comp_preference';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_set1_client_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set1_client_cert_type';{$ENDIF}
+{$ENDIF}
 function SSL_set1_compressed_cert; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set1_compressed_cert';{$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -15226,7 +15275,9 @@ function SSL_set1_ipaddr; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external
 {$ENDIF}
 {$ENDIF}
 function SSL_set1_param; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set1_param';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 function SSL_set1_server_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set1_server_cert_type';{$ENDIF}
+{$ENDIF}
 function SSL_set_SSL_CTX; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set_SSL_CTX';{$ENDIF}
 procedure SSL_set_accept_state; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set_accept_state';{$ENDIF}
 procedure SSL_set_allow_early_data_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'SSL_set_allow_early_data_cb';{$ENDIF}
@@ -16698,7 +16749,9 @@ function d2i_X509_bio; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external na
 function d2i_X509_fp; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'd2i_X509_fp';{$ENDIF}
 function d2i_int_dhx; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'd2i_int_dhx';{$ENDIF}
 procedure do_dtls1_write; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'do_dtls1_write';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure dtls1_buffer_message; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_buffer_message';{$ENDIF}
+{$ENDIF}
 procedure dtls1_check_timeout_num; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_check_timeout_num';{$ENDIF}
 procedure dtls1_clear; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_clear';{$ENDIF}
 procedure dtls1_clear_received_buffer; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_clear_received_buffer';{$ENDIF}
@@ -16710,7 +16763,9 @@ procedure dtls1_dispatch_alert; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}ex
 procedure dtls1_do_write; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_do_write';{$ENDIF}
 procedure dtls1_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_free';{$ENDIF}
 procedure dtls1_get_epoch; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_get_epoch';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure dtls1_get_message_header; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_get_message_header';{$ENDIF}
+{$ENDIF}
 procedure dtls1_get_queue_priority; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_get_queue_priority';{$ENDIF}
 procedure dtls1_get_timeout; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_get_timeout';{$ENDIF}
 procedure dtls1_handle_timeout; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_handle_timeout';{$ENDIF}
@@ -16722,10 +16777,14 @@ procedure dtls1_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name
 procedure dtls1_query_mtu; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_query_mtu';{$ENDIF}
 procedure dtls1_read_bytes; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_read_bytes';{$ENDIF}
 procedure dtls1_read_failed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_read_failed';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure dtls1_retransmit_buffered_messages; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_retransmit_buffered_messages';{$ENDIF}
+{$ENDIF}
 procedure dtls1_retransmit_message; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_retransmit_message';{$ENDIF}
 procedure dtls1_set_handshake_header; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_set_handshake_header';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure dtls1_set_message_header; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_set_message_header';{$ENDIF}
+{$ENDIF}
 procedure dtls1_shutdown; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_shutdown';{$ENDIF}
 procedure dtls1_start_timer; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_start_timer';{$ENDIF}
 procedure dtls1_stop_timer; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_stop_timer';{$ENDIF}
@@ -16741,12 +16800,24 @@ procedure dtls_post_encryption_processing; {$IFDEF C_COMPILER_BORLAND_32}externa
 procedure dtls_prepare_record_header; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls_prepare_record_header';{$ENDIF}
 procedure dtls_process_hello_verify; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls_process_hello_verify';{$ENDIF}
 procedure dtls_raw_hello_verify_request; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls_raw_hello_verify_request';{$ENDIF}
-procedure dtlsv1_2_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_client_method';{$ENDIF}
-procedure dtlsv1_2_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_method';{$ENDIF}
-procedure dtlsv1_2_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_server_method';{$ENDIF}
-procedure dtlsv1_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_client_method';{$ENDIF}
-procedure dtlsv1_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_method';{$ENDIF}
-procedure dtlsv1_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_server_method';{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure dtlsv1_2_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_client_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure dtlsv1_2_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure dtlsv1_2_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_server_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure dtlsv1_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_client_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure dtlsv1_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure dtlsv1_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_server_method_'{$ENDIF}
+{$ENDIF}
 procedure err_cleanup; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'err_cleanup';{$ENDIF}
 procedure err_clear_last_constant_time; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'err_clear_last_constant_time';{$ENDIF}
 procedure err_free_strings_int; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'err_free_strings_int';{$ENDIF}
@@ -17320,8 +17391,12 @@ procedure ossl_asn1_object_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}ex
 {$ENDIF}
 procedure ossl_asn1_primitive_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_primitive_free';{$ENDIF}
 procedure ossl_asn1_set_choice_selector; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_set_choice_selector';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_asn1_string_embed_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_string_embed_free';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_asn1_string_set_bits_left; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_string_set_bits_left';{$ENDIF}
+{$ENDIF}
 procedure ossl_asn1_template_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_template_free';{$ENDIF}
 procedure ossl_asn1_time_from_tm; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_time_from_tm';{$ENDIF}
 procedure ossl_asn1_time_print_ex; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_time_print_ex';{$ENDIF}
@@ -17400,12 +17475,24 @@ procedure ossl_c2i_ASN1_BIT_STRING; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELS
 procedure ossl_c2i_ASN1_INTEGER; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_c2i_ASN1_INTEGER';{$ENDIF}
 procedure ossl_c2i_ASN1_OBJECT; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_c2i_ASN1_OBJECT';{$ENDIF}
 procedure ossl_c2i_uint64_int; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_c2i_uint64_int';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_c448_ed448_convert_private_key_to_x448; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_c448_ed448_convert_private_key_to_x448';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_c448_ed448_derive_public_key; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_c448_ed448_derive_public_key';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_c448_ed448_sign; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_c448_ed448_sign';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_c448_ed448_sign_prehash; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_c448_ed448_sign_prehash';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_c448_ed448_verify; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_c448_ed448_verify';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_c448_ed448_verify_prehash; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_c448_ed448_verify_prehash';{$ENDIF}
+{$ENDIF}
 procedure ossl_calculate_comp_expansion; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_calculate_comp_expansion';{$ENDIF}
 procedure ossl_ccm_cipher; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ccm_cipher';{$ENDIF}
 procedure ossl_ccm_dinit; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ccm_dinit';{$ENDIF}
@@ -17635,7 +17722,9 @@ procedure ossl_crypto_condvar_wait; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELS
 procedure ossl_crypto_condvar_wait_timeout; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_crypto_condvar_wait_timeout';{$ENDIF}
 procedure ossl_crypto_free_ex_index_ex; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_crypto_free_ex_index_ex';{$ENDIF}
 procedure ossl_crypto_get_ex_new_index_ex; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_crypto_get_ex_new_index_ex';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_crypto_mem_barrier; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_crypto_mem_barrier';{$ENDIF}
+{$ENDIF}
 procedure ossl_crypto_mutex_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_crypto_mutex_free';{$ENDIF}
 procedure ossl_crypto_mutex_lock; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_crypto_mutex_lock';{$ENDIF}
 procedure ossl_crypto_mutex_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_crypto_mutex_new';{$ENDIF}
@@ -18416,7 +18505,9 @@ procedure ossl_ml_dsa_key_pub_alloc; {$IFDEF C_COMPILER_BORLAND_32}external;{$EL
 procedure ossl_ml_dsa_key_public_from_private; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_key_public_from_private';{$ENDIF}
 procedure ossl_ml_dsa_key_reset; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_key_reset';{$ENDIF}
 procedure ossl_ml_dsa_key_to_text; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_key_to_text';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_ml_dsa_matrix_expand_A; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_matrix_expand_A';{$ENDIF}
+{$ENDIF}
 procedure ossl_ml_dsa_matrix_mult_vector; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_matrix_mult_vector';{$ENDIF}
 procedure ossl_ml_dsa_mu_finalize; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_mu_finalize';{$ENDIF}
 procedure ossl_ml_dsa_mu_init; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_mu_init';{$ENDIF}
@@ -18441,7 +18532,9 @@ procedure ossl_ml_dsa_sig_encode; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}
 procedure ossl_ml_dsa_sign; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_sign';{$ENDIF}
 procedure ossl_ml_dsa_sk_decode; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_sk_decode';{$ENDIF}
 procedure ossl_ml_dsa_sk_encode; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_sk_encode';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_ml_dsa_vector_expand_S; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_vector_expand_S';{$ENDIF}
+{$ENDIF}
 procedure ossl_ml_dsa_verify; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_verify';{$ENDIF}
 procedure ossl_ml_dsa_w1_encode; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_w1_encode';{$ENDIF}
 procedure ossl_ml_kem_d2i_PKCS8; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_kem_d2i_PKCS8';{$ENDIF}
@@ -18487,7 +18580,9 @@ procedure ossl_param_build_set_bn; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE
 procedure ossl_param_build_set_bn_pad; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_param_build_set_bn_pad';{$ENDIF}
 procedure ossl_param_build_set_int; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_param_build_set_int';{$ENDIF}
 procedure ossl_param_build_set_long; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_param_build_set_long';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_param_build_set_multi_key_bn; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_param_build_set_multi_key_bn';{$ENDIF}
+{$ENDIF}
 procedure ossl_param_build_set_octet_string; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_param_build_set_octet_string';{$ENDIF}
 procedure ossl_param_build_set_utf8_string; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_param_build_set_utf8_string';{$ENDIF}
 procedure ossl_param_bytes_to_blocks; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_param_bytes_to_blocks';{$ENDIF}
@@ -18855,7 +18950,9 @@ procedure ossl_qtx_write_pkt; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}exte
 procedure ossl_quic_accept; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_accept';{$ENDIF}
 procedure ossl_quic_accept_connection; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_accept_connection';{$ENDIF}
 procedure ossl_quic_accept_stream; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_accept_stream';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_quic_attach_stream; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_attach_stream';{$ENDIF}
+{$ENDIF}
 procedure ossl_quic_bind_channel; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_bind_channel';{$ENDIF}
 procedure ossl_quic_calculate_retry_integrity_tag; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_calculate_retry_integrity_tag';{$ENDIF}
 procedure ossl_quic_callback_ctrl; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_callback_ctrl';{$ENDIF}
@@ -19062,7 +19159,9 @@ procedure ossl_quic_demux_release_urxe; {$IFDEF C_COMPILER_BORLAND_32}external;{
 procedure ossl_quic_demux_set_bio; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_demux_set_bio';{$ENDIF}
 procedure ossl_quic_demux_set_default_handler; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_demux_set_default_handler';{$ENDIF}
 procedure ossl_quic_demux_set_mtu; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_demux_set_mtu';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_quic_detach_stream; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_detach_stream';{$ENDIF}
+{$ENDIF}
 procedure ossl_quic_do_handshake; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_do_handshake';{$ENDIF}
 procedure ossl_quic_engine_create_port; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_engine_create_port';{$ENDIF}
 procedure ossl_quic_engine_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_engine_free';{$ENDIF}
@@ -19148,7 +19247,9 @@ procedure ossl_quic_lcidm_lookup; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}
 procedure ossl_quic_lcidm_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_lcidm_new';{$ENDIF}
 procedure ossl_quic_lcidm_retire; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_lcidm_retire';{$ENDIF}
 procedure ossl_quic_lcidm_retire_odcid; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_lcidm_retire_odcid';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_quic_leave_blocking_section; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_leave_blocking_section';{$ENDIF}
+{$ENDIF}
 procedure ossl_quic_listen; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_listen';{$ENDIF}
 procedure ossl_quic_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_new';{$ENDIF}
 procedure ossl_quic_new_domain; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_new_domain';{$ENDIF}
@@ -19329,20 +19430,26 @@ procedure ossl_quic_reactor_tick; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}
 procedure ossl_quic_reactor_wait_ctx_cleanup; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_reactor_wait_ctx_cleanup';{$ENDIF}
 procedure ossl_quic_reactor_wait_ctx_enter; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_reactor_wait_ctx_enter';{$ENDIF}
 procedure ossl_quic_reactor_wait_ctx_init; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_reactor_wait_ctx_init';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_quic_reactor_wait_ctx_leave; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_reactor_wait_ctx_leave';{$ENDIF}
+{$ENDIF}
 procedure ossl_quic_read; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_read';{$ENDIF}
 procedure ossl_quic_renegotiate_check; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_renegotiate_check';{$ENDIF}
 procedure ossl_quic_reset; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_reset';{$ENDIF}
 procedure ossl_quic_rstream_available; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_available';{$ENDIF}
 procedure ossl_quic_rstream_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_free';{$ENDIF}
 procedure ossl_quic_rstream_get_record; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_get_record';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_quic_rstream_move_to_rbuf; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_move_to_rbuf';{$ENDIF}
+{$ENDIF}
 procedure ossl_quic_rstream_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_new';{$ENDIF}
 procedure ossl_quic_rstream_peek; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_peek';{$ENDIF}
 procedure ossl_quic_rstream_queue_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_queue_data';{$ENDIF}
 procedure ossl_quic_rstream_read; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_read';{$ENDIF}
 procedure ossl_quic_rstream_release_record; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_release_record';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_quic_rstream_resize_rbuf; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_resize_rbuf';{$ENDIF}
+{$ENDIF}
 procedure ossl_quic_rstream_set_cleanse; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_set_cleanse';{$ENDIF}
 procedure ossl_quic_rxfc_get_credit; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rxfc_get_credit';{$ENDIF}
 procedure ossl_quic_rxfc_get_cwm; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rxfc_get_cwm';{$ENDIF}
@@ -19753,14 +19860,30 @@ procedure ossl_self_test_set_callback_new; {$IFDEF C_COMPILER_BORLAND_32}externa
 procedure ossl_serial_number_print; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_serial_number_print';{$ENDIF}
 procedure ossl_set_error_state; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_set_error_state';{$ENDIF}
 procedure ossl_set_tls_provider_parameters; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_set_tls_provider_parameters';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_sframe_list_destroy; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_list_destroy';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_sframe_list_drop_frames; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_list_drop_frames';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_sframe_list_init; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_list_init';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_sframe_list_insert; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_list_insert';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_sframe_list_is_head_locked; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_list_is_head_locked';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_sframe_list_lock_head; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_list_lock_head';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_sframe_list_move_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_list_move_data';{$ENDIF}
+{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_sframe_list_peek; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_list_peek';{$ENDIF}
+{$ENDIF}
 procedure ossl_sha1; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sha1';{$ENDIF}
 procedure ossl_sha1_ctrl; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sha1_ctrl';{$ENDIF}
 procedure ossl_sha256_192_init; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sha256_192_init';{$ENDIF}
@@ -19945,7 +20068,9 @@ procedure ossl_time_now; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external 
 procedure ossl_tls_add_custom_ext_intern; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_tls_add_custom_ext_intern';{$ENDIF}
 procedure ossl_tls_buffer_release; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_tls_buffer_release';{$ENDIF}
 procedure ossl_tls_handle_rlayer_return; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_tls_handle_rlayer_return';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ossl_tls_rl_record_set_seq_num; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_tls_rl_record_set_seq_num';{$ENDIF}
+{$ENDIF}
 procedure ossl_to_hex; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_to_hex';{$ENDIF}
 procedure ossl_tolower; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_tolower';{$ENDIF}
 procedure ossl_toupper; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_toupper';{$ENDIF}
@@ -20047,7 +20172,9 @@ procedure srp_verify_server_param; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE
 procedure ssl3_callback_ctrl; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl3_callback_ctrl';{$ENDIF}
 procedure ssl3_cbc_digest_record; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl3_cbc_digest_record';{$ENDIF}
 procedure ssl3_cbc_record_digest_supported; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl3_cbc_record_digest_supported';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ssl3_cbc_remove_padding_and_mac; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl3_cbc_remove_padding_and_mac';{$ENDIF}
+{$ENDIF}
 procedure ssl3_check_cert_and_algorithm; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl3_check_cert_and_algorithm';{$ENDIF}
 procedure ssl3_choose_cipher; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl3_choose_cipher';{$ENDIF}
 procedure ssl3_cleanup_key_block; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl3_cleanup_key_block';{$ENDIF}
@@ -20167,15 +20294,23 @@ procedure ssl_get_split_send_fragment; {$IFDEF C_COMPILER_BORLAND_32}external;{$
 procedure ssl_handshake_hash; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_handshake_hash';{$ENDIF}
 procedure ssl_handshake_md; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_handshake_md';{$ENDIF}
 procedure ssl_hmac_final; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_final';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ssl_hmac_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_free';{$ENDIF}
+{$ENDIF}
 procedure ssl_hmac_get0_EVP_MAC_CTX; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_get0_EVP_MAC_CTX';{$ENDIF}
 procedure ssl_hmac_get0_HMAC_CTX; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_get0_HMAC_CTX';{$ENDIF}
 procedure ssl_hmac_init; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_init';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ssl_hmac_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_new';{$ENDIF}
+{$ENDIF}
 procedure ssl_hmac_old_final; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_old_final';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ssl_hmac_old_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_old_free';{$ENDIF}
+{$ENDIF}
 procedure ssl_hmac_old_init; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_old_init';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure ssl_hmac_old_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_old_new';{$ENDIF}
+{$ENDIF}
 procedure ssl_hmac_old_size; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_old_size';{$ENDIF}
 procedure ssl_hmac_old_update; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_old_update';{$ENDIF}
 procedure ssl_hmac_size; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_size';{$ENDIF}
@@ -20326,7 +20461,9 @@ procedure tls_construct_ctos_grease2; {$IFDEF C_COMPILER_BORLAND_32}external;{$E
 procedure tls_construct_ctos_key_share; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_construct_ctos_key_share';{$ENDIF}
 procedure tls_construct_ctos_maxfragmentlen; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_construct_ctos_maxfragmentlen';{$ENDIF}
 procedure tls_construct_ctos_npn; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_construct_ctos_npn';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure tls_construct_ctos_padding; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_construct_ctos_padding';{$ENDIF}
+{$ENDIF}
 procedure tls_construct_ctos_post_handshake_auth; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_construct_ctos_post_handshake_auth';{$ENDIF}
 procedure tls_construct_ctos_psk; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_construct_ctos_psk';{$ENDIF}
 procedure tls_construct_ctos_psk_kex_modes; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_construct_ctos_psk_kex_modes';{$ENDIF}
@@ -20406,7 +20543,9 @@ procedure tls_parse_ctos_alpn; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}ext
 procedure tls_parse_ctos_client_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_ctos_client_cert_type';{$ENDIF}
 procedure tls_parse_ctos_cookie; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_ctos_cookie';{$ENDIF}
 procedure tls_parse_ctos_early_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_ctos_early_data';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure tls_parse_ctos_ec_pt_formats; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_ctos_ec_pt_formats';{$ENDIF}
+{$ENDIF}
 {$IFDEF OPENSSL_4X}
 procedure tls_parse_ctos_ech; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_ctos_ech';{$ENDIF}
 {$ENDIF}
@@ -20433,7 +20572,9 @@ procedure tls_parse_stoc_alpn; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}ext
 procedure tls_parse_stoc_client_cert_type; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_stoc_client_cert_type';{$ENDIF}
 procedure tls_parse_stoc_cookie; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_stoc_cookie';{$ENDIF}
 procedure tls_parse_stoc_early_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_stoc_early_data';{$ENDIF}
+{$IFDEF OPENSSL_3X}
 procedure tls_parse_stoc_ec_pt_formats; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_stoc_ec_pt_formats';{$ENDIF}
+{$ENDIF}
 {$IFDEF OPENSSL_4X}
 procedure tls_parse_stoc_ech; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_parse_stoc_ech';{$ENDIF}
 {$ENDIF}
@@ -20502,18 +20643,36 @@ procedure tls_validate_all_contexts; {$IFDEF C_COMPILER_BORLAND_32}external;{$EL
 procedure tls_write_records; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_write_records';{$ENDIF}
 procedure tls_write_records_default; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_write_records_default';{$ENDIF}
 procedure tls_write_records_multiblock; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_write_records_multiblock';{$ENDIF}
-procedure tlsv1_1_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_client_method';{$ENDIF}
-procedure tlsv1_1_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_method';{$ENDIF}
-procedure tlsv1_1_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_server_method';{$ENDIF}
-procedure tlsv1_2_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_client_method';{$ENDIF}
-procedure tlsv1_2_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_method';{$ENDIF}
-procedure tlsv1_2_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_server_method';{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure tlsv1_1_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_client_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure tlsv1_1_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure tlsv1_1_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_server_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure tlsv1_2_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_client_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure tlsv1_2_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure tlsv1_2_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_server_method_'{$ENDIF}
+{$ENDIF}
 procedure tlsv1_3_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_3_client_method';{$ENDIF}
 procedure tlsv1_3_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_3_method';{$ENDIF}
 procedure tlsv1_3_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_3_server_method';{$ENDIF}
-procedure tlsv1_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_client_method';{$ENDIF}
-procedure tlsv1_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_method';{$ENDIF}
-procedure tlsv1_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_server_method';{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure tlsv1_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_client_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure tlsv1_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_method_'{$ENDIF}
+{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure tlsv1_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tlsv1_server_method_'{$ENDIF}
+{$ENDIF}
 procedure v2i_ASN1_BIT_STRING; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'v2i_ASN1_BIT_STRING';{$ENDIF}
 function v2i_GENERAL_NAME; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'v2i_GENERAL_NAME';{$ENDIF}
 procedure v2i_GENERAL_NAMES; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'v2i_GENERAL_NAMES';{$ENDIF}
@@ -20542,21 +20701,242 @@ procedure EVP_Cipher_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external na
 // Removed in OpenSSL 4.x (deprecated TLS method APIs dropped).
 // For BCC32, patch_static_link.py patches ssl/methods.c directly (no /FI support).
 {$IFDEF OPENSSL_3X}
-procedure dtlsv1_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_client_method_';{$ENDIF}
-procedure dtlsv1_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_method_';{$ENDIF}
-procedure dtlsv1_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_server_method_';{$ENDIF}
-procedure dtlsv1_2_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_client_method_';{$ENDIF}
-procedure dtlsv1_2_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_method_';{$ENDIF}
-procedure dtlsv1_2_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_server_method_';{$ENDIF}
-procedure tlsv1_1_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_client_method_';{$ENDIF}
-procedure tlsv1_1_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_method_';{$ENDIF}
-procedure tlsv1_1_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_server_method_';{$ENDIF}
-procedure tlsv1_2_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_client_method_';{$ENDIF}
-procedure tlsv1_2_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_method_';{$ENDIF}
-procedure tlsv1_2_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_server_method_';{$ENDIF}
-procedure tlsv1_client_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_client_method_';{$ENDIF}
-procedure tlsv1_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_method_';{$ENDIF}
-procedure tlsv1_server_method_; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}cdecl; external name EXTERNAL_NAME_PREFIX + 'tlsv1_server_method_';{$ENDIF}
+{$IFNDEF C_COMPILER_BORLAND_32}
+procedure dtlsv1_client_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_client_method_';
+procedure dtlsv1_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_method_';
+procedure dtlsv1_server_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_server_method_';
+procedure dtlsv1_2_client_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_client_method_';
+procedure dtlsv1_2_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_method_';
+procedure dtlsv1_2_server_method_; external name EXTERNAL_NAME_PREFIX + 'dtlsv1_2_server_method_';
+procedure tlsv1_1_client_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_client_method_';
+procedure tlsv1_1_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_method_';
+procedure tlsv1_1_server_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_1_server_method_';
+procedure tlsv1_2_client_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_client_method_';
+procedure tlsv1_2_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_method_';
+procedure tlsv1_2_server_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_2_server_method_';
+procedure tlsv1_client_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_client_method_';
+procedure tlsv1_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_method_';
+procedure tlsv1_server_method_; external name EXTERNAL_NAME_PREFIX + 'tlsv1_server_method_';
+{$ENDIF}
+{$ENDIF}
+
+// 3.6.1 and 4.1.0 objects (all compilers) export these 15 TLS/DTLS protocol-method
+// symbols under the trailing-underscore form; the 3 tlsv1_3_* remain plain.
+// bcc32 binds to the '_'-form here for both the 3.x and 4.x branches.
+{$IFDEF C_COMPILER_BORLAND_32}
+procedure dtlsv1_2_client_method_; external;
+procedure dtlsv1_2_method_; external;
+procedure dtlsv1_2_server_method_; external;
+procedure dtlsv1_client_method_; external;
+procedure dtlsv1_method_; external;
+procedure dtlsv1_server_method_; external;
+procedure tlsv1_1_client_method_; external;
+procedure tlsv1_1_method_; external;
+procedure tlsv1_1_server_method_; external;
+procedure tlsv1_2_client_method_; external;
+procedure tlsv1_2_method_; external;
+procedure tlsv1_2_server_method_; external;
+procedure tlsv1_client_method_; external;
+procedure tlsv1_method_; external;
+procedure tlsv1_server_method_; external;
+{$ENDIF}
+
+{$IFDEF OPENSSL_4X}
+{$IFDEF C_COMPILER_MSC_64}
+// OpenSSL 4.1.0 final Win64 (MSVC) symbols not covered above.
+// DTLSv1_3_enc_data is a cross-object internal (defined in d1_lib_win64.obj, plain name on
+// x64); snprintf / BCryptGenRandom are system/CRT imports the C objects reference.
+procedure DTLSv1_3_enc_data; external;
+procedure snprintf; external 'ucrtbase.dll' name 'snprintf';
+procedure BCryptGenRandom; external 'bcrypt.dll' name 'BCryptGenRandom';
+{$ENDIF}
+{$ENDIF}
+
+// OpenSSL 4.1.0 objects add new internal register-convention ('@'-prefixed in OMF)
+// cross-object symbols (quic/dgram/rbtree/dtls internals + new getters). bcc32 branch-4
+// declares them so tlink32 resolves the cross-object references. C internals not called
+// from Pascal; declaration kind is irrelevant for linking.
+{$IFDEF OPENSSL_4X}
+procedure ASN1_STRING_get_length; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ASN1_STRING_get_length'{$ENDIF}
+procedure BIO_socket_ready; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_socket_ready'{$ENDIF}
+procedure CRYPTO_atomic_cmp_exch_ptr; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'CRYPTO_atomic_cmp_exch_ptr'{$ENDIF}
+procedure CRYPTO_atomic_load_ptr; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'CRYPTO_atomic_load_ptr'{$ENDIF}
+procedure CRYPTO_atomic_store_ptr; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'CRYPTO_atomic_store_ptr'{$ENDIF}
+procedure DTLS_RECORD_LAYER_buffered_app_data_pending; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'DTLS_RECORD_LAYER_buffered_app_data_pending'{$ENDIF}
+procedure OPENSSL_sk_set_copy_thunks; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_sk_set_copy_thunks'{$ENDIF}
+procedure WPACKET_start_sub_packet_at_offset_len__; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'WPACKET_start_sub_packet_at_offset_len__'{$ENDIF}
+procedure bn_set_top_fixed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'bn_set_top_fixed'{$ENDIF}
+procedure dtls13_hellos_done; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls13_hellos_done'{$ENDIF}
+procedure dtls13_transcript_hash_update; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls13_transcript_hash_update'{$ENDIF}
+procedure dtls1_clear_current_wrl_from_sent_buffer; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_clear_current_wrl_from_sent_buffer'{$ENDIF}
+procedure dtls1_record_number_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_record_number_new'{$ENDIF}
+procedure dtls1_retransmit_sent_messages; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_retransmit_sent_messages'{$ENDIF}
+procedure dtls1_sent_msg_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls1_sent_msg_free'{$ENDIF}
+procedure dtls_any_sent_messages_are_missing_acknowledge; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls_any_sent_messages_are_missing_acknowledge'{$ENDIF}
+procedure dtls_construct_ack; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls_construct_ack'{$ENDIF}
+procedure dtls_crypt_sequence_number; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls_crypt_sequence_number'{$ENDIF}
+procedure dtls_get_rec_header_size; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls_get_rec_header_size'{$ENDIF}
+procedure dtls_process_ack; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtls_process_ack'{$ENDIF}
+procedure dtlsv1_3_client_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_3_client_method'{$ENDIF}
+procedure dtlsv1_3_server_method; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'dtlsv1_3_server_method'{$ENDIF}
+procedure ossl_ackm_on_tx_ack_only_packet; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ackm_on_tx_ack_only_packet'{$ENDIF}
+procedure ossl_asn1_bit_string_set_unused_bits; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_bit_string_set_unused_bits'{$ENDIF}
+procedure ossl_asn1_call_aux_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_call_aux_cb'{$ENDIF}
+procedure ossl_asn1_string_free_internal; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_string_free_internal'{$ENDIF}
+procedure ossl_asn1_string_set1_data; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_string_set1_data'{$ENDIF}
+procedure ossl_asn1_string_set1_string; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_string_set1_string'{$ENDIF}
+procedure ossl_asn1_string_set_internal; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_asn1_string_set_internal'{$ENDIF}
+procedure ossl_ch_reset_rx_state; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ch_reset_rx_state'{$ENDIF}
+procedure ossl_cipher_cbc_cts_get_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_cipher_cbc_cts_get_ctx_params'{$ENDIF}
+procedure ossl_cipher_cbc_cts_gettable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_cipher_cbc_cts_gettable_ctx_params'{$ENDIF}
+procedure ossl_cipher_cbc_cts_set_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_cipher_cbc_cts_set_ctx_params'{$ENDIF}
+procedure ossl_cipher_cbc_cts_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_cipher_cbc_cts_settable_ctx_params'{$ENDIF}
+procedure ossl_cipher_common_get_params; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_cipher_common_get_params'{$ENDIF}
+procedure ossl_cipher_generic_dupctx_tlsmac; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_cipher_generic_dupctx_tlsmac'{$ENDIF}
+procedure ossl_cms_stream; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_cms_stream'{$ENDIF}
+procedure ossl_conf_parse_bool; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_conf_parse_bool'{$ENDIF}
+procedure ossl_dgram_conn_lookup_find; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_conn_lookup_find'{$ENDIF}
+procedure ossl_dgram_conn_lookup_foreach; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_conn_lookup_foreach'{$ENDIF}
+procedure ossl_dgram_conn_lookup_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_conn_lookup_free'{$ENDIF}
+procedure ossl_dgram_conn_lookup_new_addr; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_conn_lookup_new_addr'{$ENDIF}
+procedure ossl_dgram_conn_lookup_num_items; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_conn_lookup_num_items'{$ENDIF}
+procedure ossl_dgram_conn_lookup_register; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_conn_lookup_register'{$ENDIF}
+procedure ossl_dgram_conn_lookup_register_addr; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_conn_lookup_register_addr'{$ENDIF}
+procedure ossl_dgram_conn_lookup_unregister; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_conn_lookup_unregister'{$ENDIF}
+procedure ossl_dgram_demux_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_free'{$ENDIF}
+procedure ossl_dgram_demux_has_pending; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_has_pending'{$ENDIF}
+procedure ossl_dgram_demux_inject; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_inject'{$ENDIF}
+procedure ossl_dgram_demux_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_new'{$ENDIF}
+procedure ossl_dgram_demux_pump; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_pump'{$ENDIF}
+procedure ossl_dgram_demux_reinject_urxe; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_reinject_urxe'{$ENDIF}
+procedure ossl_dgram_demux_release_urxe; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_release_urxe'{$ENDIF}
+procedure ossl_dgram_demux_set_bio; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_set_bio'{$ENDIF}
+procedure ossl_dgram_demux_set_default_handler; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_set_default_handler'{$ENDIF}
+procedure ossl_dgram_demux_set_max_free_urxe; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_set_max_free_urxe'{$ENDIF}
+procedure ossl_dgram_demux_set_mtu; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_demux_set_mtu'{$ENDIF}
+procedure ossl_dgram_urxe_insert_head; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_urxe_insert_head'{$ENDIF}
+procedure ossl_dgram_urxe_insert_tail; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_urxe_insert_tail'{$ENDIF}
+procedure ossl_dgram_urxe_remove; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dgram_urxe_remove'{$ENDIF}
+procedure ossl_dist_point_name_full; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dist_point_name_full'{$ENDIF}
+procedure ossl_dtls_accept_connection; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_accept_connection'{$ENDIF}
+procedure ossl_dtls_block_until_ready; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_block_until_ready'{$ENDIF}
+procedure ossl_dtls_blocking; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_blocking'{$ENDIF}
+procedure ossl_dtls_conn_poll_events; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_conn_poll_events'{$ENDIF}
+procedure ossl_dtls_conn_wait_for_datagram; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_conn_wait_for_datagram'{$ENDIF}
+procedure ossl_dtls_conn_wait_for_write; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_conn_wait_for_write'{$ENDIF}
+procedure ossl_dtls_get0_listener; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_get0_listener'{$ENDIF}
+procedure ossl_dtls_get_accept_connection_queue_len; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_get_accept_connection_queue_len'{$ENDIF}
+procedure ossl_dtls_get_blocking_mode; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_get_blocking_mode'{$ENDIF}
+procedure ossl_dtls_get_value_uint; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_get_value_uint'{$ENDIF}
+procedure ossl_dtls_listen; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listen'{$ENDIF}
+procedure ossl_dtls_listener_deregister_blocking_section; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_deregister_blocking_section'{$ENDIF}
+procedure ossl_dtls_listener_enter_blocking_section; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_enter_blocking_section'{$ENDIF}
+procedure ossl_dtls_listener_gen_cookie_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_gen_cookie_cb'{$ENDIF}
+procedure ossl_dtls_listener_gen_stateless_cookie_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_gen_stateless_cookie_cb'{$ENDIF}
+procedure ossl_dtls_listener_get_net_rbio; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_get_net_rbio'{$ENDIF}
+procedure ossl_dtls_listener_get_net_wbio; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_get_net_wbio'{$ENDIF}
+procedure ossl_dtls_listener_has_pending_input; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_has_pending_input'{$ENDIF}
+procedure ossl_dtls_listener_poll_events; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_poll_events'{$ENDIF}
+procedure ossl_dtls_listener_set0_net_rbio; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_set0_net_rbio'{$ENDIF}
+procedure ossl_dtls_listener_set0_net_wbio; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_set0_net_wbio'{$ENDIF}
+procedure ossl_dtls_listener_unregister_established_conn; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_unregister_established_conn'{$ENDIF}
+procedure ossl_dtls_listener_verify_cookie_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_verify_cookie_cb'{$ENDIF}
+procedure ossl_dtls_listener_verify_stateless_cookie_cb; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_verify_stateless_cookie_cb'{$ENDIF}
+procedure ossl_dtls_listener_wait_for_notifier_clear; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_listener_wait_for_notifier_clear'{$ENDIF}
+procedure ossl_dtls_new_listener; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_new_listener'{$ENDIF}
+procedure ossl_dtls_read_datagram; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_read_datagram'{$ENDIF}
+procedure ossl_dtls_rx_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_rx_free'{$ENDIF}
+procedure ossl_dtls_rx_inject_urxe; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_rx_inject_urxe'{$ENDIF}
+procedure ossl_dtls_rx_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_rx_new'{$ENDIF}
+procedure ossl_dtls_rx_release_urxe; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_rx_release_urxe'{$ENDIF}
+procedure ossl_dtls_set_blocking_mode; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_set_blocking_mode'{$ENDIF}
+procedure ossl_dtls_set_value_uint; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_set_value_uint'{$ENDIF}
+procedure ossl_dtls_tick; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_dtls_tick'{$ENDIF}
+procedure ossl_ec_group_fromdata_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ec_group_fromdata_parsed'{$ENDIF}
+procedure ossl_ec_group_new_from_params_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ec_group_new_from_params_parsed'{$ENDIF}
+procedure ossl_ec_group_set_params_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ec_group_set_params_parsed'{$ENDIF}
+procedure ossl_ec_group_todata_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ec_group_todata_parsed'{$ENDIF}
+procedure ossl_ec_key_fromdata_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ec_key_fromdata_parsed'{$ENDIF}
+procedure ossl_ec_key_otherparams_fromdata_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ec_key_otherparams_fromdata_parsed'{$ENDIF}
+procedure ossl_list_record_number_elem_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_list_record_number_elem_free'{$ENDIF}
+procedure ossl_ml_dsa_sample_ops; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_ml_dsa_sample_ops'{$ENDIF}
+procedure ossl_pkcs7_get0_stream_content; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_pkcs7_get0_stream_content'{$ENDIF}
+procedure ossl_pkcs7_stream; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_pkcs7_stream'{$ENDIF}
+procedure ossl_qrx_newref; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_qrx_newref'{$ENDIF}
+procedure ossl_quic_cfq_discard_unreliable; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_cfq_discard_unreliable'{$ENDIF}
+procedure ossl_quic_deregister_blocking_section; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_deregister_blocking_section'{$ENDIF}
+procedure ossl_quic_fifd_pkt_discard_unreliable; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_fifd_pkt_discard_unreliable'{$ENDIF}
+procedure ossl_quic_obj_reparent; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_obj_reparent'{$ENDIF}
+procedure ossl_quic_port_get_max_pending_channels; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_port_get_max_pending_channels'{$ENDIF}
+procedure ossl_quic_port_peek_incoming; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_port_peek_incoming'{$ENDIF}
+procedure ossl_quic_port_set_max_pending_channels; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_port_set_max_pending_channels'{$ENDIF}
+procedure ossl_quic_reactor_deregister_blocking_section; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_reactor_deregister_blocking_section'{$ENDIF}
+procedure ossl_quic_reactor_wait_ctx_deregister; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_reactor_wait_ctx_deregister'{$ENDIF}
+procedure ossl_quic_reactor_wait_ctx_drain; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_reactor_wait_ctx_drain'{$ENDIF}
+procedure ossl_quic_reactor_wait_for_notifier_clear; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_reactor_wait_for_notifier_clear'{$ENDIF}
+procedure ossl_quic_rstream_qparm_destroy; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_qparm_destroy'{$ENDIF}
+procedure ossl_quic_rstream_qparm_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_rstream_qparm_new'{$ENDIF}
+procedure ossl_quic_stream_map_retire_stream_credit; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_stream_map_retire_stream_credit'{$ENDIF}
+procedure ossl_quic_tls_set0_ssl; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_quic_tls_set0_ssl'{$ENDIF}
+procedure ossl_rand_get0_seed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rand_get0_seed'{$ENDIF}
+procedure ossl_rand_seed_source_strict; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rand_seed_source_strict'{$ENDIF}
+procedure ossl_rbt_find; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_find'{$ENDIF}
+procedure ossl_rbt_init_rbe; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_init_rbe'{$ENDIF}
+procedure ossl_rbt_insert; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_insert'{$ENDIF}
+procedure ossl_rbt_left; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_left'{$ENDIF}
+procedure ossl_rbt_max; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_max'{$ENDIF}
+procedure ossl_rbt_min; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_min'{$ENDIF}
+procedure ossl_rbt_next; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_next'{$ENDIF}
+procedure ossl_rbt_nfind; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_nfind'{$ENDIF}
+procedure ossl_rbt_parent; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_parent'{$ENDIF}
+procedure ossl_rbt_prev; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_prev'{$ENDIF}
+procedure ossl_rbt_remove; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_remove'{$ENDIF}
+procedure ossl_rbt_right; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_right'{$ENDIF}
+procedure ossl_rbt_root; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_root'{$ENDIF}
+procedure ossl_rbt_set_left; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_set_left'{$ENDIF}
+procedure ossl_rbt_set_parent; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_set_parent'{$ENDIF}
+procedure ossl_rbt_set_right; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rbt_set_right'{$ENDIF}
+procedure ossl_rcu_cb_item_free; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rcu_cb_item_free'{$ENDIF}
+procedure ossl_rcu_cb_item_new; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rcu_cb_item_new'{$ENDIF}
+procedure ossl_rsa_fromdata_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rsa_fromdata_parsed'{$ENDIF}
+procedure ossl_rsa_pss_params_30_fromdata_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rsa_pss_params_30_fromdata_parsed'{$ENDIF}
+procedure ossl_rsa_pss_params_30_todata_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rsa_pss_params_30_todata_parsed'{$ENDIF}
+procedure ossl_rsa_todata_parsed; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_rsa_todata_parsed'{$ENDIF}
+procedure ossl_session_set0_peer; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_session_set0_peer'{$ENDIF}
+procedure ossl_sframe_set_avail; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_set_avail'{$ENDIF}
+procedure ossl_sframe_set_destroy_ranges; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_set_destroy_ranges'{$ENDIF}
+procedure ossl_sframe_set_init; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_set_init'{$ENDIF}
+procedure ossl_sframe_set_insert; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_set_insert'{$ENDIF}
+procedure ossl_sframe_set_move_offset; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_set_move_offset'{$ENDIF}
+procedure ossl_sframe_set_peek; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_sframe_set_peek'{$ENDIF}
+procedure ossl_statem_dtls_client_use_timer; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_statem_dtls_client_use_timer'{$ENDIF}
+procedure ossl_statem_dtls_server_use_timer; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_statem_dtls_server_use_timer'{$ENDIF}
+procedure ossl_strtoint; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_strtoint'{$ENDIF}
+procedure ossl_tdes_gettable_params; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_tdes_gettable_params'{$ENDIF}
+procedure ossl_utf8_getc_internal; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_utf8_getc_internal'{$ENDIF}
+procedure ossl_utf8_putc_internal; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_utf8_putc_internal'{$ENDIF}
+procedure ossl_x509_check_host; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_x509_check_host'{$ENDIF}
+procedure ossl_x509_check_ip; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ossl_x509_check_ip'{$ENDIF}
+procedure pitem_new_u64; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'pitem_new_u64'{$ENDIF}
+procedure pqueue_find_u64; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'pqueue_find_u64'{$ENDIF}
+procedure ssl_cipher_get_evp_cipher_sn; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_cipher_get_evp_cipher_sn'{$ENDIF}
+procedure ssl_hmac_construct; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_construct'{$ENDIF}
+procedure ssl_hmac_destruct; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_destruct'{$ENDIF}
+procedure ssl_hmac_old_construct; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_old_construct'{$ENDIF}
+procedure ssl_hmac_old_destruct; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'ssl_hmac_old_destruct'{$ENDIF}
+procedure tls_common_finish_mac; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_common_finish_mac'{$ENDIF}
+procedure tls_get_record_body_alignment_offset; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_get_record_body_alignment_offset'{$ENDIF}
+procedure tls_get_record_header_len; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_get_record_header_len'{$ENDIF}
+procedure tls_hrr_cookie_required; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_hrr_cookie_required'{$ENDIF}
+procedure tls_release_read_buffer; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_release_read_buffer'{$ENDIF}
+procedure tls_set1_peer; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_set1_peer'{$ENDIF}
+procedure tls_set_use_urxe; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_set_use_urxe'{$ENDIF}
+procedure tls_validate_no_unknown_extensions; {$IFDEF C_COMPILER_BORLAND_32}external;{$ELSE}external name EXTERNAL_NAME_PREFIX + 'tls_validate_no_unknown_extensions'{$ENDIF}
+{$IFDEF C_COMPILER_BORLAND_32}
+procedure _DTLSv1_3_enc_data; external;
+procedure _bio_type_count; external;
+procedure _dtls_1_3_funcs; external;
+{$ENDIF}
 {$ENDIF}
 
 // --- Public API symbols missing from the sorted list above ---
@@ -21663,6 +22043,17 @@ function _gmtime(timer: Pointer): Pointer; cdecl;
 // Windows API needed by init_win32.obj
 function GetModuleHandleExA(dwFlags: DWORD; lpModuleName: PAnsiChar; phModule: Pointer): BOOL; stdcall;
   external 'kernel32.dll' name 'GetModuleHandleExA';
+
+{$IFDEF OPENSSL_4X}
+// CRT / WinAPI imports referenced by OpenSSL 4.1.0 final Win32 objects
+// (bcc32 classic). 3.6.1 (branch-3) objects do not reference these.
+function _snprintf(buf: PAnsiChar; n: NativeUInt; fmt: PAnsiChar; ap: Pointer): Integer;
+  cdecl; external 'msvcrt.dll' name '_snprintf';
+function _stat(path: PAnsiChar; stat: Pointer): Integer;
+  cdecl; external 'msvcrt.dll' name '_stat';
+function GetModuleHandleExW(dwFlags: DWORD; lpModuleName: PWideChar; phModule: Pointer): BOOL; stdcall;
+  external 'kernel32.dll' name 'GetModuleHandleExW';
+{$ENDIF}
 
 function __wfopen(filename, mode: PWideChar): C_FILE_ptr;cdecl;
 var
@@ -23525,7 +23916,10 @@ procedure ossl_prov_ctx_get0_core_bio_method; external name 'ossl_prov_ctx_get0_
 procedure ossl_prov_ctx_set0_core_bio_method; external name 'ossl_prov_ctx_set0_core_bio_method';
 procedure ossl_prov_ctx_set0_core_get_params; external name 'ossl_prov_ctx_set0_core_get_params';
 // Renamed collision bridge: ossl_err_load_crypto_strings -> ossl_err_load_crypto_strings_
+// (BCC64 objects keep original name — rename fixup not applied to bcc64 OBJs)
+{$IFNDEF C_COMPILER_BORLAND_64}
 procedure ossl_err_load_crypto_strings_; external name 'ossl_err_load_crypto_strings_';
+{$ENDIF}
 // OpenSSL 3.6.1 cross-obj bridges (removed in 4.x)
 {$IFDEF OPENSSL_3X}
 procedure EVP_CIPHER_meth_get_ctrl; external name 'EVP_CIPHER_meth_get_ctrl';
@@ -23554,8 +23948,6 @@ function _onexit(func: Pointer): Pointer; cdecl;
   external 'msvcrt.dll' name '_onexit';
 function _gmtime64_s(tm_result: Pointer; timer: Pointer): Integer; cdecl;
   external 'msvcrt.dll' name '_gmtime64_s';
-function gmtime(timer: Pointer): Pointer; cdecl;
-  external 'msvcrt.dll' name 'gmtime';
 
 // Windows API needed by init_win64.obj
 function GetModuleHandleExW(dwFlags: DWORD; lpModuleName: PWideChar; phModule: Pointer): BOOL; stdcall;
@@ -23715,16 +24107,6 @@ function getnameinfo(sa: Pointer; salen: Integer;
   flags: Integer): Integer; stdcall;
   external 'ws2_32.dll' name 'getnameinfo';
 
-// --- Windows API ---
-function GetCurrentFiber: Pointer;
-asm
-  .noframe
-  mov rax, qword ptr gs:[$20]
-end;
-
-function GetModuleHandleExA(dwFlags: DWORD; lpModuleName: PAnsiChar; phModule: Pointer): BOOL; stdcall;
-  external 'kernel32.dll' name 'GetModuleHandleExA';
-
 // --- Borland CRT ---
 // __get_std_stream: returns FILE* for stdin/stdout/stderr (stub)
 function __get_std_stream(n: Integer): Pointer; cdecl;
@@ -23796,18 +24178,18 @@ end;
 // SOCKADDR_SIZE: Windows SDK inline compiled into OBJ by BCC64 — bridge to OBJ PUBDEF
 function sockaddr_size(ap: Pointer): Integer; cdecl; external name 'SOCKADDR_SIZE';
 
+// ossl_err_load_crypto_strings: renamed in BCC64 OBJs to avoid case collision with
+// ossl_err_load_CRYPTO_strings (different function). Mirrors MSVC collision header.
+// Patch applied by helpers/patch_coff_symbol.py --rename.
+procedure ossl_err_load_crypt_strings_; cdecl; external name 'ossl_err_load_crypt_strings_';
+
 // Internal OpenSSL data — BCC64 OBJs patched from GLOBAL to LOCAL by
-// helpers/patch_coff_symbol.py --demote. Pascal vars serve as cross-OBJ bridges
-// (dcc64 cannot resolve EXTDEF to PUBDEF between OBJ files directly).
-//
-// bio_type_count is a lock-based CRYPTO_REF_COUNT in the BCC64 build:
-//   offset 0: int val, offset 8: CRYPTO_RWLOCK*
-// Keep the bridge 16 bytes so finalization reads a nil lock pointer.
-// OPENSSL_ia32cap_P is OPENSSL_IA32CAP_P_MAX_INDEXES = 10 unsigned int slots.
+// helpers/patch_coff_symbol.py --demote.  Pascal vars serve as cross-OBJ bridges
+// (dcc64 cannot resolve EXTDEF→PUBDEF between OBJ files directly).
 var
   bio_lookup_lock: Pointer = nil;
-  bio_type_count: array[0..1] of Int64 = (0, 0);
-  OPENSSL_ia32cap_P: array[0..9] of Cardinal = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+  bio_type_count: Integer = 0;
+  OPENSSL_ia32cap_P: array[0..3] of Cardinal = (0, 0, 0, 0);
 {$ENDIF C_COMPILER_BORLAND_64}
 
 {$IFEND} // C_COMPILER_MSC_64 OR C_COMPILER_BORLAND_64

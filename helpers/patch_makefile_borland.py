@@ -1,17 +1,17 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 patch_makefile_borland.py
 Patches the OpenSSL-generated Makefile to be compatible with Embarcadero
 (Borland) make instead of Microsoft nmake.
 
 Conversions:
-  1. @<< ... <<  →  @&&| ... |    (inline response files)
-  2. /$(MAKEFLAGS)  →  removed     (Borland auto-propagates)
-  3. $(MAKE) depend  →  no-op      (depend target is empty; sub-make breaks MAKEFLAGS)
-  4. !IF/!ELSE/!ENDIF  →  !if/!else/!endif  (conditional directives)
-  5. -O1 → -Od for ICE-triggering files  (bcc32 ICE workaround)
+  1. @<< ... <<  ->  @&&| ... |    (inline response files)
+  2. /$(MAKEFLAGS)  ->  removed     (Borland auto-propagates)
+  3. $(MAKE) depend  ->  no-op      (depend target is empty; sub-make breaks MAKEFLAGS)
+  4. !IF/!ELSE/!ENDIF  ->  !if/!else/!endif  (conditional directives)
+  5. -O1 -> -Od for ICE-triggering files  (bcc32 ICE workaround)
   6. TLIB: add + prefix before .obj files in AR response blocks
-  7. CC=bcc32c → CC=cmd /c bcc32c  (workaround for spaces in executable path)
+  7. CC=bcc32c -> CC=cmd /c bcc32c  (workaround for spaces in executable path)
 
 Usage:
   python helpers/patch_makefile_borland.py [path/to/makefile]
@@ -43,18 +43,18 @@ def patch(path):
     original = content
     fixes = 0
 
-    # 1. Inline response files:  @<<  →  @&&|  and  ^<<$  →  |
+    # 1. Inline response files:  @<<  ->  @&&|  and  ^<<$  ->  |
     #    nmake:   $(AR) ... @<<\n obj1 &\n obj2\n <<
     #    bmake:   $(AR) ... @&&|\n obj1 &\n obj2\n |
     count_start = content.count('@<<')
     content = content.replace('@<<', '@&&|')
-    # Standalone << as line terminator → |
+    # Standalone << as line terminator -> |
     content = re.sub(r'^<<$', '|', content, flags=re.MULTILINE)
     fixes += count_start
     if count_start:
-        print(f'  [{count_start}] Inline response files: @<< → @&&|')
+        print(f'  [{count_start}] Inline response files: @<< -> @&&|')
 
-    # 2. Submake flag prefix:  /$(MAKEFLAGS)  →  remove entirely
+    # 2. Submake flag prefix:  /$(MAKEFLAGS)  ->  remove entirely
     #    Borland make auto-propagates MAKEFLAGS to sub-makes.
     #    Its MAKEFLAGS already contains dash-prefixed flags (e.g. "K -N -l -o"),
     #    so "$(MAKE) -$(MAKEFLAGS) target" would produce broken double-dashed
@@ -66,24 +66,24 @@ def patch(path):
     if count_flags:
         print(f'  [{count_flags}] Submake flags: removed /$(MAKEFLAGS) (auto-propagated)')
 
-    # 3. Sub-make depend calls:  $(MAKE) depend  →  @ @rem (no-op)
+    # 3. Sub-make depend calls:  $(MAKE) depend  ->  @ @rem (no-op)
     #    The depend target is a no-op (@ @rem), but invoking $(MAKE) depend
     #    spawns a sub-make that inherits MAKEFLAGS from the environment.
     #    Borland make's MAKEFLAGS (e.g. "K -N -l -o") contains -o which
-    #    consumes "depend" as its filename arg → "RAD does not exist" error.
+    #    consumes "depend" as its filename arg -> "RAD does not exist" error.
     count_depend = len(re.findall(r'^\t\$\(MAKE\)\s+depend\s*$', content, re.MULTILINE))
     content = re.sub(r'^\t\$\(MAKE\)\s+depend\s*$', '\t@ @rem depend (no-op)', content, flags=re.MULTILINE)
     fixes += count_depend
     if count_depend:
-        print(f'  [{count_depend}] Sub-make depend: $(MAKE) depend → @ @rem (no-op)')
+        print(f'  [{count_depend}] Sub-make depend: $(MAKE) depend -> @ @rem (no-op)')
 
-    # 4. Conditional directives: !IF → !if, !ELSE → !else, !ENDIF → !endif
+    # 4. Conditional directives: !IF -> !if, !ELSE -> !else, !ENDIF -> !endif
     for upper, lower in [('!IF ', '!if '), ('!ELSE', '!else'), ('!ENDIF', '!endif')]:
         c = content.count(upper)
         if c:
             content = content.replace(upper, lower)
             fixes += c
-            print(f'  [{c}] Conditional: {upper.strip()} → {lower.strip()}')
+            print(f'  [{c}] Conditional: {upper.strip()} -> {lower.strip()}')
 
     # 5. Reduce optimization for files that trigger ICE (internal compiler error).
     #    bcc32 classic crashes on certain complex code with -O1/-O2; downgrade to -Od.
@@ -179,7 +179,7 @@ def patch(path):
         new_ar = 'AR=echo'
         content = content.replace(old_ar, new_ar, 1)
         fixes += 1
-        print(f'  [1] TLIB skip: {old_ar} → {new_ar} (Delphi links .obj directly)')
+        print(f'  [1] TLIB skip: {old_ar} -> {new_ar} (Delphi links .obj directly)')
 
     if fixes == 0:
         print('No nmake-specific patterns found — nothing to patch.')

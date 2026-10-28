@@ -31,7 +31,7 @@ if not defined OPENSSL_BRANCH set "OPENSSL_BRANCH=4"
 
 REM === Version-to-path mapping ===
 if "%OPENSSL_BRANCH%"=="3" set "OPENSSL_SRC=%~dp0c_src\openssl-openssl-3.6.1"
-if "%OPENSSL_BRANCH%"=="4" set "OPENSSL_SRC=%~dp0c_src\openssl-openssl-4.0.0"
+if "%OPENSSL_BRANCH%"=="4" set "OPENSSL_SRC=%~dp0c_src\openssl-openssl-4.1.0"
 if "%OPENSSL_BRANCH%"=="3" set "OBJ_DIR=obj3"
 if "%OPENSSL_BRANCH%"=="4" set "OBJ_DIR=obj4"
 set "INC_PREFIX=%OBJ_DIR%_"

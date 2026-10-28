@@ -161,11 +161,15 @@ for /R "%OPENSSL_SRC%" %%f in (*.obj) do (
     )
 )
 
-REM Copy MSVC-specific ucrt helper (provides bio_lookup_lock, bio_type_count stubs)
-if exist "%~dp0helpers\ossl%OPENSSL_BRANCH%_ucrt_helper_win64.obj" (
-    copy /Y "%~dp0helpers\ossl%OPENSSL_BRANCH%_ucrt_helper_win64.obj" "%OBJ_OUT%\ossl%OPENSSL_BRANCH%_ucrt_helper_win64.obj" >nul
-    echo   Copied ossl%OPENSSL_BRANCH%_ucrt_helper_win64.obj
+REM Copy MSVC-specific ucrt helper (provides bio_lookup_lock, bio_type_count stubs).
+REM This helper is UCRT-level, NOT OpenSSL-version-specific — shared between branch 3 and 4,
+REM always stored as ossl3_ucrt_helper_win64.obj so the generated .inc references a stable name.
+if exist "%~dp0helpers\ossl3_ucrt_helper_win64.obj" (
+    copy /Y "%~dp0helpers\ossl3_ucrt_helper_win64.obj" "%OBJ_OUT%\ossl3_ucrt_helper_win64.obj" >nul
+    echo   Copied ossl3_ucrt_helper_win64.obj
     set /a OBJ_COUNT+=1
+) else (
+    echo   WARNING: ossl3_ucrt_helper_win64.obj not found in helpers\.
 )
 
 echo   Collected !OBJ_COUNT! object files.
