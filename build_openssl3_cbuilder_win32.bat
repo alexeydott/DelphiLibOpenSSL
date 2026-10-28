@@ -185,6 +185,12 @@ for /R "%OPENSSL_SRC%" %%f in (*.obj) do (
 
 echo   Collected !OBJ_COUNT! object files.
 
+REM BCC32C emits CALLBACK symbols without the cdecl underscore prefix.
+python "%~dp0helpers\patch_omf_symbol.py" "%OBJ_OUT%\libcrypto-lib-async_win_win32.obj" async_start_func_win _async_start_func_win
+if errorlevel 1 exit /b 1
+python "%~dp0helpers\patch_omf_symbol.py" "%OBJ_OUT%\libcrypto-lib-async_win32.obj" async_start_func_win _async_start_func_win
+if errorlevel 1 exit /b 1
+
 REM === Generate Delphi .inc file ===
 echo [8/8] Generating %OBJ_DIR%_L_win32_bcc32c.inc...
 

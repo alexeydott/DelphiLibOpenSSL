@@ -174,6 +174,14 @@ if exist "%~dp0helpers\ossl3_ucrt_helper_win64.obj" (
 
 echo   Collected !OBJ_COUNT! object files.
 
+REM dcc64 exposes STATIC functions to case-insensitive public matching.
+if "%OPENSSL_BRANCH%"=="4" (
+    python "%~dp0helpers\patch_coff_symbol.py" --demote "%OBJ_OUT%\libcrypto-lib-skeymgmt_meth_win64.obj" evp_skeymgmt_free
+    if errorlevel 1 exit /b 1
+    python "%~dp0helpers\patch_coff_symbol.py" --demote "%OBJ_OUT%\libcrypto-lib-skeymgmt_meth_win64.obj" evp_skeymgmt_up_ref
+    if errorlevel 1 exit /b 1
+)
+
 REM === Generate Delphi .inc file ===
 echo [7/7] Generating %OBJ_DIR%_L_win64_vc.inc...
 

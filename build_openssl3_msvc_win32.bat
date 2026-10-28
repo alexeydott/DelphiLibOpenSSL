@@ -161,6 +161,17 @@ for /R "%OPENSSL_SRC%" %%f in (*.obj) do (
 
 echo   Collected !OBJ_COUNT! object files.
 
+if "%OPENSSL_BRANCH%"=="4" (
+    python "%~dp0helpers\patch_coff_symbol.py" --demote "%OBJ_OUT%\libcrypto-lib-skeymgmt_meth_win32.obj" _evp_skeymgmt_free
+    if errorlevel 1 exit /b 1
+    python "%~dp0helpers\patch_coff_symbol.py" --demote "%OBJ_OUT%\libcrypto-lib-skeymgmt_meth_win32.obj" _evp_skeymgmt_up_ref
+    if errorlevel 1 exit /b 1
+    python "%~dp0helpers\patch_coff_symbol.py" --demote "%OBJ_OUT%\libdefault-lib-file_store_win32.obj" _stat
+    if errorlevel 1 exit /b 1
+)
+"%RAD_STUDIO%\bin\tasm32.exe" /ml "%~dp0%OBJ_DIR%\crt\msc32_coff_bridges.asm","%~dp0%OBJ_DIR%\crt\msc32_coff_bridges.obj"
+if errorlevel 1 exit /b 1
+
 REM === Generate Delphi .inc file ===
 echo [7/7] Generating %OBJ_DIR%_L_win32_vc.inc...
 

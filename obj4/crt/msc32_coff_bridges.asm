@@ -1212,4 +1212,46 @@ _WSASocketA@24 PROC
     jmp WSASocketA
 _WSASocketA@24 ENDP
 
+EXTERN GetModuleFileNameW:NEAR
+PUBLIC _GetModuleFileNameW@12
+_GetModuleFileNameW@12 PROC
+    jmp GetModuleFileNameW
+_GetModuleFileNameW@12 ENDP
+
+EXTERN GetModuleHandleExW:NEAR
+PUBLIC _GetModuleHandleExW@12
+_GetModuleHandleExW@12 PROC
+    jmp GetModuleHandleExW
+_GetModuleHandleExW@12 ENDP
+
+EXTERN InitializeConditionVariable:NEAR
+PUBLIC _InitializeConditionVariable@4
+_InitializeConditionVariable@4 PROC
+    jmp InitializeConditionVariable
+_InitializeConditionVariable@4 ENDP
+
+EXTERN WakeConditionVariable:NEAR
+PUBLIC _WakeConditionVariable@4
+_WakeConditionVariable@4 PROC
+    jmp WakeConditionVariable
+_WakeConditionVariable@4 ENDP
+
+EXTERN WakeAllConditionVariable:NEAR
+PUBLIC _WakeAllConditionVariable@4
+_WakeAllConditionVariable@4 PROC
+    jmp WakeAllConditionVariable
+_WakeAllConditionVariable@4 ENDP
+
+EXTERN SleepConditionVariableCS:NEAR
+PUBLIC _SleepConditionVariableCS@12
+_SleepConditionVariableCS@12 PROC
+    jmp SleepConditionVariableCS
+_SleepConditionVariableCS@12 ENDP
+
+EXTERN BCryptGenRandom:NEAR
+PUBLIC _BCryptGenRandom@16
+_BCryptGenRandom@16 PROC
+    jmp BCryptGenRandom
+_BCryptGenRandom@16 ENDP
+
 END

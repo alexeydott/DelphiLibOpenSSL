@@ -607,8 +607,8 @@ var
   Ver: Cardinal;
 begin
   Ver := OpenSSL_version_num;
-  Assert.IsTrue(Ver >= $30000000,
-    'OpenSSL version number should be >= 3.0.0 (0x30000000)');
+  Assert.AreEqual(Cardinal(OPENSSL_VERSION_NUMBER), Ver,
+    'Linked objects must match the selected OpenSSL version');
 end;
 
 procedure TTestOpenSSLInit.Test_OpenSSL_version_string;
@@ -617,8 +617,8 @@ var
 begin
   S := OpenSSL_version(OPENSSL_VERSION_const);
   Assert.IsNotNull(S, 'OpenSSL_version should not return nil');
-  Assert.IsTrue(Length(string(AnsiString(S))) > 0,
-    'Version string should not be empty');
+  Assert.IsTrue(Pos(OPENSSL_VERSION_TEXT, string(AnsiString(S))) = 1,
+    'Linked version string must match the selected OpenSSL version');
 end;
 
 procedure TTestOpenSSLInit.Test_OPENSSL_info;
@@ -1489,8 +1489,10 @@ begin
   Cert := X509_new;
   X509_set_version(Cert, 2);
   ASN1_INTEGER_set(X509_get_serialNumber(Cert), 1);
-  X509_gmtime_adj(X509_getm_notBefore(Cert), 0);
-  X509_gmtime_adj(X509_getm_notAfter(Cert), 365 * 24 * 3600);
+  Assert.IsNotNull(X509_gmtime_adj(X509_getm_notBefore(Cert), 0),
+    'Certificate notBefore requires a working CRT time_t bridge');
+  Assert.IsNotNull(X509_gmtime_adj(X509_getm_notAfter(Cert), 365 * 24 * 3600),
+    'Certificate notAfter requires a working CRT time_t bridge');
   X509_set_pubkey(Cert, PKey);
 
   Name := X509_get_subject_name(Cert);

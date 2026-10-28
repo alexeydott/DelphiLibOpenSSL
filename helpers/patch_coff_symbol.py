@@ -35,7 +35,7 @@ def detect_format(data):
         return 'elf'
     if len(data) >= 2:
         machine = struct.unpack_from('<H', data, 0)[0]
-        if machine == COFF_AMD64:
+        if machine in (COFF_AMD64, 0x014c):
             return 'coff'
     return None
 
@@ -285,8 +285,30 @@ def coff_demote(obj_path, symbol, dry_run=False):
                       'storage': storage}
             break
     if target is None:
+        local_name = '.local.' + os.path.basename(obj_path) + '.' + symbol
+        if any(name == local_name for _, name, *_ in coff_iter_symbols(data, hdr)):
+            print(f"  Already isolated STATIC symbol: {symbol}")
+            return 0
         print(f"Error: symbol '{symbol}' not found.", file=sys.stderr)
         return 1
+    if target['storage'] == IMAGE_SYM_CLASS_STATIC and target['section'] > 0:
+        # dcc also exposes STATIC functions, so isolate their names from
+        # case-insensitive public matching. Relocations keep symbol indices.
+        local_name = ('.local.' + os.path.basename(obj_path) + '.' + symbol).encode('ascii') + b'\0'
+        strtab = hdr['symtab_ptr'] + hdr['nsymbols'] * 18
+        size = struct.unpack_from('<I', data, strtab)[0]
+        print(f"  Isolating STATIC symbol: {symbol}")
+        if dry_run:
+            return 0
+        backup_path = obj_path + '.bak'
+        if not os.path.exists(backup_path):
+            shutil.copy2(obj_path, backup_path)
+        data[strtab + size:strtab + size] = local_name
+        struct.pack_into('<II', data, hdr['symtab_ptr'] + target['index'] * 18, 0, size)
+        struct.pack_into('<I', data, strtab, size + len(local_name))
+        with open(obj_path, 'wb') as f:
+            f.write(data)
+        return 0
     if target['storage'] != IMAGE_SYM_CLASS_EXTERNAL:
         print(f"  Already {coff_storage_name(target['storage'])}. Nothing to do.")
         return 0
@@ -308,7 +330,7 @@ def coff_demote(obj_path, symbol, dry_run=False):
     with open(obj_path, 'wb') as f:
         f.write(data)
     print("  Patched successfully.")
-    return 0
+    return coff_demote(obj_path, symbol)
 
 
 # ===== Unified commands =====
@@ -378,11 +400,7 @@ def cmd_demote(obj_path, symbol, dry_run=False):
 
 
 def cmd_rename(obj_path, old_name, new_name, dry_run=False):
-    """Rename a symbol in-place in the string table. Same length required."""
-    if len(old_name) != len(new_name):
-        print(f"Error: old_name ({len(old_name)} chars) and new_name ({len(new_name)} chars) "
-              f"must be the same length.", file=sys.stderr)
-        return 1
+    """Rename exact COFF symbols, or same-length ELF string-table names."""
     if not os.path.isfile(obj_path):
         print(f"Error: '{obj_path}' not found.", file=sys.stderr)
         return 1
@@ -391,8 +409,32 @@ def cmd_rename(obj_path, old_name, new_name, dry_run=False):
         data = bytearray(f.read())
 
     fmt = detect_format(bytes(data[:20]))
+    if fmt == 'coff':
+        hdr = coff_parse_header(data)
+        matches = [idx for idx, name, *_ in coff_iter_symbols(data, hdr) if name == old_name]
+        if not matches:
+            return 0 if any(name == new_name for _, name, *_ in coff_iter_symbols(data, hdr)) else 1
+        print(f"  {os.path.basename(obj_path)}: {old_name} -> {new_name}")
+        if dry_run:
+            return 0
+        backup = obj_path + '.bak'
+        if not os.path.exists(backup):
+            shutil.copy2(obj_path, backup)
+        strtab = hdr['symtab_ptr'] + hdr['nsymbols'] * COFF_SYMTAB_ENTRY_SIZE
+        size = struct.unpack_from('<I', data, strtab)[0]
+        encoded = new_name.encode('ascii') + b'\0'
+        data[strtab + size:strtab + size] = encoded
+        for idx in matches:
+            struct.pack_into('<II', data, hdr['symtab_ptr'] + idx * COFF_SYMTAB_ENTRY_SIZE, 0, size)
+        struct.pack_into('<I', data, strtab, size + len(encoded))
+        with open(obj_path, 'wb') as f:
+            f.write(data)
+        return 0
+    if len(old_name) != len(new_name):
+        print('ELF renames require equal-length names.', file=sys.stderr)
+        return 1
     if fmt != 'elf':
-        print(f"Error: --rename only supports ELF objects (got {fmt}).", file=sys.stderr)
+        print(f"Error: --rename requires a COFF or ELF object (got {fmt}).", file=sys.stderr)
         return 1
 
     sections = parse_elf_sections(data)
@@ -603,12 +645,12 @@ def main():
     group.add_argument('--scan', action='store_true', help='Scan for a symbol')
     group.add_argument('--demote', action='store_true', help='Demote GLOBAL->LOCAL')
     group.add_argument('--rename', action='store_true',
-                       help='Rename symbol in string table (ELF only, same length)')
+                       help='Rename exact COFF symbols or same-length ELF names')
     group.add_argument('--demote-comdat-dups', action='store_true',
                        help='Demote all COMDAT sel=1 dups from dir4 that also exist in dir3')
     parser.add_argument('target', nargs='?', help='OBJ file, directory, or dir3 for --demote-comdat-dups')
     parser.add_argument('symbol', nargs='?', help='Symbol name, or dir4 for --demote-comdat-dups')
-    parser.add_argument('new_name', nargs='?', help='New name (--rename only, same length)')
+    parser.add_argument('new_name', nargs='?', help='New name (--rename only; ELF requires same length)')
     parser.add_argument('--dry-run', action='store_true', help='Preview only')
     args = parser.parse_args()
 
