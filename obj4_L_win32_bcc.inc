@@ -1108,3 +1108,4 @@
 {$L obj4\win32\bcc\libssl-lib-tls_srp_win32}
 {$L obj4\win32\bcc\libssl-lib-tlsany_meth_win32}
 {$L obj4\win32\bcc\libssl-lib-uint_set_win32}
+{$L obj4\win32\bcc\libcrypto-lib-delphi_hpke_win32}

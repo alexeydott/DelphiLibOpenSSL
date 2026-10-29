@@ -242,11 +242,15 @@ type
   C___time32_t_ptr = ^C___time32_t;
 
 type
-  C_time_t_ptr = ^NativeInt;
-
-type
   C__TIME_T = {$IFDEF C_COMPILER_MSC_32}Int64{$ELSE}NativeInt{$ENDIF};
   C__TIME_T_ptr = ^C__TIME_T;
+  C_time_t_ptr = C__TIME_T_ptr;
+  // BC-64 uses BN_LLONG (32-bit limbs); VC-WIN64A uses 64-bit limbs.
+  BN_ULONG = {$IFDEF C_COMPILER_MSC_64}UInt64{$ELSE}Cardinal{$ENDIF};
+  OSSL_HPKE_SUITE = record
+    kem_id, kdf_id, aead_id: Word;
+  end;
+  OSSL_HPKE_SUITE_ptr = ^OSSL_HPKE_SUITE;
 
 type
   C_tm = record
@@ -393,7 +397,8 @@ function fclose(Stream: C_FILE_ptr): Integer;
     // Callback calling convention: register for BCC32 -pr (default), cdecl for BCC32C/MSVC_32
     C_qsort_compare_func = function(const p1, p2: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
     pem_password_cb = function(Buf: PAnsiChar; Size: Integer; rwflag: Integer; UserData: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-    C_signal_func = procedure(i1, i2: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+    // CRT signal handlers use cdecl even with classic BCC32 -pr.
+    C_signal_func = procedure(sig: Integer); cdecl;
     atexit_proc = procedure; {$IFDEF __CDECL}cdecl; {$ENDIF}
   type
     PPByte = ^PByte;
@@ -405,12 +410,12 @@ function fclose(Stream: C_FILE_ptr): Integer;
 
   type
     C_off_t = Integer;
-    C_dev_t = SmallInt;
-    C_ino_t = SmallInt;
+    C_dev_t = {$IFDEF C_COMPILER_MSC_32}Cardinal{$ELSE}SmallInt{$ENDIF};
+    C_ino_t = {$IFDEF C_COMPILER_MSC_32}Word{$ELSE}SmallInt{$ENDIF};
     C_mode_t = Word;
     C_nlink_t = SmallInt;
-    C_uid_t = Integer;
-    C_gid_t = Integer;
+    C_uid_t = {$IFDEF C_COMPILER_MSC_32}SmallInt{$ELSE}Integer{$ENDIF};
+    C_gid_t = {$IFDEF C_COMPILER_MSC_32}SmallInt{$ELSE}Integer{$ENDIF};
 
 {$IFDEF CPUX86}
   type
@@ -433,7 +438,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
 {$IFDEF C_COMPILER_MSC_64}
   type
     C__dev_t = Cardinal;
-    C__ino_t = Cardinal;
+    C__ino_t = Word;
     C__off_t = Integer;
 
     C__stat64i32 = record
@@ -528,7 +533,34 @@ function fclose(Stream: C_FILE_ptr): Integer;
     STACK_OF_ASN1_OBJECT_ptr = Pointer;
 
   type
+    ASN1_TYPE_VALUE = record
+      case Integer of
+        0: (ptr: PAnsiChar);
+        1: (boolean: ASN1_BOOLEAN);
+        2: (asn1_string: ASN1_STRING_ptr);
+        3: (object_: ASN1_OBJECT_ptr);
+        4: (integer_: ASN1_INTEGER_ptr);
+        5: (bit_string: ASN1_BIT_STRING_ptr);
+        6: (octet_string: ASN1_OCTET_STRING_ptr);
+        7: (sequence: ASN1_STRING_ptr);
+        8: (set_: ASN1_STRING_ptr);
+        9: (enumerated: ASN1_ENUMERATED_ptr);
+        10: (printablestring: ASN1_STRING_ptr);
+        11: (t61string: ASN1_STRING_ptr);
+        12: (ia5string: ASN1_IA5STRING_ptr);
+        13: (generalstring: ASN1_STRING_ptr);
+        14: (bmpstring: ASN1_STRING_ptr);
+        15: (universalstring: ASN1_STRING_ptr);
+        16: (utctime: ASN1_UTCTIME_ptr);
+        17: (generalizedtime: ASN1_GENERALIZEDTIME_ptr);
+        18: (visiblestring: ASN1_STRING_ptr);
+        19: (utf8string: ASN1_UTF8STRING_ptr);
+        20: (asn1_value: Pointer);
+    end;
+
     asn1_type_st = record
+      type_: Integer;
+      value: ASN1_TYPE_VALUE;
     end;
 
     ASN1_TYPE = asn1_type_st;
@@ -537,6 +569,9 @@ function fclose(Stream: C_FILE_ptr): Integer;
 
   type
     asn1_string_table_st = record
+      nid: Integer;
+      minsize, maxsize: Integer;
+      mask, flags: Cardinal;
     end;
 
     ASN1_STRING_TABLE = asn1_string_table_st;
@@ -544,6 +579,13 @@ function fclose(Stream: C_FILE_ptr): Integer;
 
   type
     ASN1_ITEM_st = record
+      itype: AnsiChar;
+      utype: Integer;
+      templates: Pointer; // const ASN1_TEMPLATE *
+      tcount: Integer;
+      funcs: Pointer;
+      size: Integer;
+      sname: PAnsiChar;
     end;
 
     ASN1_ITEM = ASN1_ITEM_st;
@@ -649,6 +691,10 @@ function fclose(Stream: C_FILE_ptr): Integer;
     // ============================================================================
   type
     buf_mem_st = record
+      length: NativeUInt;
+      data: PAnsiChar;
+      max: NativeUInt;
+      flags: Cardinal;
     end;
 
     BUF_MEM = buf_mem_st;
@@ -665,16 +711,17 @@ function fclose(Stream: C_FILE_ptr): Integer;
 
   type
     crypto_ex_data_st = record
+      ctx: Pointer;
       sk: Pointer;
     end;
 
-    CRYPTO_EX_DATA = ^crypto_ex_data_st;
+    CRYPTO_EX_DATA = crypto_ex_data_st;
     CRYPTO_EX_DATA_ptr = ^CRYPTO_EX_DATA;
 
   type
     CRYPTO_EX_new = procedure(Parent: Pointer; Ptr: Pointer; ad: CRYPTO_EX_DATA_ptr; Idx: Integer; argl: Integer; argp: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
     CRYPTO_EX_free = procedure(Parent: Pointer; Ptr: Pointer; ad: CRYPTO_EX_DATA_ptr; Idx: Integer; argl: Integer; argp: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-    CRYPTO_EX_dup = function(to_: CRYPTO_EX_DATA_ptr; const From: CRYPTO_EX_DATA_ptr; from_d: Pointer; Idx: Integer; argl: Integer; argp: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    CRYPTO_EX_dup = function(to_: CRYPTO_EX_DATA_ptr; const From: CRYPTO_EX_DATA_ptr; from_d: PPointer; Idx: Integer; argl: Integer; argp: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
   type
     CRYPTO_malloc_fn = function(Num: NativeUInt; const File_: PAnsiChar; Line: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
     CRYPTO_realloc_fn = function(Addr: Pointer; Num: NativeUInt; const File_: PAnsiChar; Line: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -938,6 +985,9 @@ function fclose(Stream: C_FILE_ptr): Integer;
 
   type
     rsa_pss_params_st = record
+      hashAlgorithm, maskGenAlgorithm: Pointer; // X509_ALGOR * (declared below)
+      saltLength, trailerField: ASN1_INTEGER_ptr;
+      maskHash: Pointer;
     end;
 
     RSA_PSS_PARAMS = rsa_pss_params_st;
@@ -945,6 +995,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
 
   type
     rsa_oaep_params_st = record
+      hashFunc, maskGenFunc, pSourceFunc, maskHash: Pointer; // X509_ALGOR *
     end;
 
     RSA_OAEP_PARAMS = rsa_oaep_params_st;
@@ -1049,7 +1100,18 @@ function fclose(Stream: C_FILE_ptr): Integer;
     // RAND types
     // ============================================================================
   type
+    RAND_seed_cb = function(buf: Pointer; num: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    RAND_bytes_cb = function(buf: PByte; num: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    RAND_cleanup_cb = procedure; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    RAND_add_cb = function(buf: Pointer; num: Integer; randomness: Double): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    RAND_status_cb = function: Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
     rand_meth_st = record
+      seed: RAND_seed_cb;
+      bytes: RAND_bytes_cb;
+      cleanup: RAND_cleanup_cb;
+      add: RAND_add_cb;
+      pseudorand: RAND_bytes_cb;
+      status: RAND_status_cb;
     end;
 
     RAND_METHOD = rand_meth_st;
@@ -1131,6 +1193,8 @@ function fclose(Stream: C_FILE_ptr): Integer;
 
   type
     X509_algor_st = record
+      algorithm: ASN1_OBJECT_ptr;
+      parameter: ASN1_TYPE_ptr;
     end;
 
     X509_ALGOR = X509_algor_st;
@@ -2050,13 +2114,19 @@ function fclose(Stream: C_FILE_ptr): Integer;
     OSSL_CALLBACK = function(const params: OSSL_PARAM_ptr; arg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
     OSSL_INOUT_CALLBACK = function(const in_params: OSSL_PARAM_ptr; out_params: OSSL_PARAM_ptr; arg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
     OSSL_PASSPHRASE_CALLBACK = function(pass: PAnsiChar; pass_size: NativeUInt; pass_len: PNativeUInt; const params: OSSL_PARAM_ptr; arg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    OSSL_provider_init_fn = function(handle: OSSL_CORE_HANDLE_ptr; in_: OSSL_DISPATCH_ptr;
+      out_: OSSL_DISPATCH_ptr_ptr; provctx: PPointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    ASYNC_callback_fn = function(arg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    ASYNC_callback_fn_ptr = ^ASYNC_callback_fn;
     OSSL_thread_stop_handler_fn = procedure(arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
     // Typed callback for OSSL_PROVIDER_do_all
     // C: int (*cb)(OSSL_PROVIDER *provider, void *cbdata)
     OSSL_PROVIDER_do_all_cb = function(provider: OSSL_PROVIDER_ptr; cbdata: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-    // Typed callback for EVP_MD_do_all_provided
-    // C: void (*fn)(EVP_MD *md, void *arg)
+    // Legacy EVP_MD/EVP_CIPHER enumeration includes alias names (four arguments).
+    EVP_do_all_fn = procedure(algo: Pointer; const from_, to_: PAnsiChar; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+    // Provider enumeration has a distinct two-argument callback.
     EVP_do_all_provided_fn = procedure(algo: Pointer; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+    OSSL_NAME_CALLBACK = procedure(const name: PAnsiChar; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
     // Typed callback for EVP_PKEY_export
     // C: int (*export_cb)(const OSSL_PARAM params[], void *arg)
     EVP_PKEY_export_cb = function(const params: OSSL_PARAM_ptr; arg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -2159,122 +2229,122 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function OPENSSL_buf2hexstr(const Buffer: PAnsiChar; Len: Integer): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         // CRYPTO extended data
                                         function CRYPTO_get_ex_new_index(class_index: Integer; argl: Integer; argp: Pointer; new_func: CRYPTO_EX_new; dup_func: CRYPTO_EX_dup;
-                                        free_func: CRYPTO_EX_free): Integer;
-                                        function CRYPTO_free_ex_index(class_index: Integer; Idx: Integer): Integer;
-                                        function CRYPTO_new_ex_data(class_index: Integer; Obj: Pointer; ad: CRYPTO_EX_DATA_ptr): Integer;
-                                        function CRYPTO_dup_ex_data(class_index: Integer; to_: CRYPTO_EX_DATA_ptr; const From: CRYPTO_EX_DATA_ptr): Integer;
-                                        procedure CRYPTO_free_ex_data(class_index: Integer; Obj: Pointer; ad: CRYPTO_EX_DATA_ptr);
-                                        function CRYPTO_alloc_ex_data(class_index: Integer; Obj: Pointer; ad: CRYPTO_EX_DATA_ptr; Idx: Integer): Integer;
-                                        function CRYPTO_set_ex_data(ad: CRYPTO_EX_DATA_ptr; Idx: Integer; Val: Pointer): Integer;
-                                        function CRYPTO_get_ex_data(const ad: CRYPTO_EX_DATA_ptr; Idx: Integer): Pointer;
+                                        free_func: CRYPTO_EX_free): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_free_ex_index(class_index: Integer; Idx: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_new_ex_data(class_index: Integer; Obj: Pointer; ad: CRYPTO_EX_DATA_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_dup_ex_data(class_index: Integer; to_: CRYPTO_EX_DATA_ptr; const From: CRYPTO_EX_DATA_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure CRYPTO_free_ex_data(class_index: Integer; Obj: Pointer; ad: CRYPTO_EX_DATA_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_alloc_ex_data(class_index: Integer; Obj: Pointer; ad: CRYPTO_EX_DATA_ptr; Idx: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_set_ex_data(ad: CRYPTO_EX_DATA_ptr; Idx: Integer; Val: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_get_ex_data(const ad: CRYPTO_EX_DATA_ptr; Idx: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // CRYPTO memory management (additional)
-                                        function CRYPTO_strndup(const Str: PAnsiChar; s: NativeUInt; const File_: PAnsiChar; Line: Integer): PAnsiChar;
-                                        function CRYPTO_clear_realloc(Addr: Pointer; old_num: NativeUInt; Num: NativeUInt; const File_: PAnsiChar; Line: Integer): Pointer;
-                                        function CRYPTO_set_mem_functions(m: CRYPTO_malloc_fn; r: CRYPTO_realloc_fn; f: CRYPTO_free_fn): Integer;
-                                        procedure CRYPTO_get_mem_functions(m: Pointer; r: Pointer; f: Pointer);
-                                        function CRYPTO_memcmp(const in_a: Pointer; const in_b: Pointer; Len: NativeUInt): Integer;
+                                        function CRYPTO_strndup(const Str: PAnsiChar; s: NativeUInt; const File_: PAnsiChar; Line: Integer): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_clear_realloc(Addr: Pointer; old_num: NativeUInt; Num: NativeUInt; const File_: PAnsiChar; Line: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_set_mem_functions(m: CRYPTO_malloc_fn; r: CRYPTO_realloc_fn; f: CRYPTO_free_fn): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure CRYPTO_get_mem_functions(m: Pointer; r: Pointer; f: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_memcmp(const in_a: Pointer; const in_b: Pointer; Len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // CRYPTO secure memory
-                                        function CRYPTO_secure_malloc_init(sz: NativeUInt; minsize: NativeUInt): Integer;
-                                        function CRYPTO_secure_malloc_done: Integer;
-                                        function CRYPTO_secure_malloc(Num: NativeUInt; const File_: PAnsiChar; Line: Integer): Pointer;
-                                        function CRYPTO_secure_zalloc(Num: NativeUInt; const File_: PAnsiChar; Line: Integer): Pointer;
-                                        procedure CRYPTO_secure_free(Ptr: Pointer; const File_: PAnsiChar; Line: Integer);
-                                        procedure CRYPTO_secure_clear_free(Ptr: Pointer; Num: NativeUInt; const File_: PAnsiChar; Line: Integer);
-                                        function CRYPTO_secure_allocated(const Ptr: Pointer): Integer;
-                                        function CRYPTO_secure_malloc_initialized: Integer;
-                                        function CRYPTO_secure_used: NativeUInt;
-                                        function CRYPTO_secure_actual_size(Ptr: Pointer): NativeUInt;
+                                        function CRYPTO_secure_malloc_init(sz: NativeUInt; minsize: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_secure_malloc_done: Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_secure_malloc(Num: NativeUInt; const File_: PAnsiChar; Line: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_secure_zalloc(Num: NativeUInt; const File_: PAnsiChar; Line: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure CRYPTO_secure_free(Ptr: Pointer; const File_: PAnsiChar; Line: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure CRYPTO_secure_clear_free(Ptr: Pointer; Num: NativeUInt; const File_: PAnsiChar; Line: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_secure_allocated(const Ptr: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_secure_malloc_initialized: Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_secure_used: NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_secure_actual_size(Ptr: Pointer): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // OPENSSL version (additional)
-                                        function OPENSSL_version_major: Cardinal;
-                                        function OPENSSL_version_minor: Cardinal;
-                                        function OPENSSL_version_patch: Cardinal;
-                                        function OPENSSL_version_pre_release: PAnsiChar;
-                                        function OPENSSL_version_build_metadata: PAnsiChar;
+                                        function OPENSSL_version_major: Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_version_minor: Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_version_patch: Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_version_pre_release: PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_version_build_metadata: PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // OPENSSL utility
-                                        procedure OPENSSL_cleanse(Ptr: Pointer; Len: NativeUInt);
-                                        procedure OPENSSL_die(const assertion: PAnsiChar; const File_: PAnsiChar; Line: Integer);
-                                        procedure OPENSSL_thread_stop;
-                                        procedure OPENSSL_thread_stop_ex(ctx: OSSL_LIB_CTX_ptr);
-                                        procedure OPENSSL_load_builtin_modules;
+                                        procedure OPENSSL_cleanse(Ptr: Pointer; Len: NativeUInt); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_die(const assertion: PAnsiChar; const File_: PAnsiChar; Line: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_thread_stop; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_thread_stop_ex(ctx: OSSL_LIB_CTX_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_load_builtin_modules; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // OPENSSL string utilities
-                                        function OPENSSL_strlcpy(dst: PAnsiChar; const src: PAnsiChar; siz: NativeUInt): NativeUInt;
-                                        function OPENSSL_strlcat(dst: PAnsiChar; const src: PAnsiChar; siz: NativeUInt): NativeUInt;
-                                        function OPENSSL_strnlen(const Str: PAnsiChar; maxlen: NativeUInt): NativeUInt;
-                                        function OPENSSL_strcasecmp(const s1: PAnsiChar; const s2: PAnsiChar): Integer;
-                                        function OPENSSL_strncasecmp(const s1: PAnsiChar; const s2: PAnsiChar; n: NativeUInt): Integer;
+                                        function OPENSSL_strlcpy(dst: PAnsiChar; const src: PAnsiChar; siz: NativeUInt): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_strlcat(dst: PAnsiChar; const src: PAnsiChar; siz: NativeUInt): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_strnlen(const Str: PAnsiChar; maxlen: NativeUInt): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_strcasecmp(const s1: PAnsiChar; const s2: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_strncasecmp(const s1: PAnsiChar; const s2: PAnsiChar; n: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // OPENSSL hex conversion (additional)
-                                        function OPENSSL_hexstr2buf(const Str: PAnsiChar; Len: PInteger): PByte;
-                                        function OPENSSL_hexchar2int(c: Byte): Integer;
-                                        function OPENSSL_buf2hexstr_ex(Str: PAnsiChar; str_n: NativeUInt; strlength: PNativeUInt; const Buf: PByte; buflen: NativeUInt; sep: AnsiChar): Integer;
-                                        function OPENSSL_hexstr2buf_ex(Buf: PByte; buf_n: NativeUInt; buflen: PNativeUInt; const Str: PAnsiChar; sep: AnsiChar): Integer;
+                                        function OPENSSL_hexstr2buf(const Str: PAnsiChar; Len: PInteger): PByte; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_hexchar2int(c: Byte): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_buf2hexstr_ex(Str: PAnsiChar; str_n: NativeUInt; strlength: PNativeUInt; const Buf: PByte; buflen: NativeUInt; sep: AnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_hexstr2buf_ex(Buf: PByte; buf_n: NativeUInt; buflen: PNativeUInt; const Str: PAnsiChar; sep: AnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // OPENSSL string conversion
-                                        function OPENSSL_asc2uni(const asc: PAnsiChar; asclen: Integer; uni: PPAnsiChar; unilen: PInteger): PAnsiChar;
-                                        function OPENSSL_uni2asc(const uni: PAnsiChar; unilen: Integer): PAnsiChar;
-                                        function OPENSSL_utf82uni(const asc: PAnsiChar; asclen: Integer; uni: PPAnsiChar; unilen: PInteger): PAnsiChar;
-                                        function OPENSSL_uni2utf8(const uni: PAnsiChar; unilen: Integer): PAnsiChar;
-                                        function OPENSSL_cipher_name(const rfc_name: PAnsiChar): PAnsiChar;
+                                        function OPENSSL_asc2uni(const asc: PAnsiChar; asclen: Integer; uni: PPAnsiChar; unilen: PInteger): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_uni2asc(const uni: PAnsiChar; unilen: Integer): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_utf82uni(const asc: PAnsiChar; asclen: Integer; uni: PPAnsiChar; unilen: PInteger): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_uni2utf8(const uni: PAnsiChar; unilen: Integer): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_cipher_name(const rfc_name: PAnsiChar): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // OPENSSL init settings
-                                        function OPENSSL_INIT_new: OPENSSL_INIT_SETTINGS_ptr;
-                                        function OPENSSL_INIT_set_config_filename(Settings: OPENSSL_INIT_SETTINGS_ptr; const config_filename: PAnsiChar): Integer;
-                                        procedure OPENSSL_INIT_set_config_file_flags(Settings: OPENSSL_INIT_SETTINGS_ptr; Flags: Cardinal);
-                                        function OPENSSL_INIT_set_config_appname(Settings: OPENSSL_INIT_SETTINGS_ptr; const config_appname: PAnsiChar): Integer;
-                                        procedure OPENSSL_INIT_free(Settings: OPENSSL_INIT_SETTINGS_ptr);
+                                        function OPENSSL_INIT_new: OPENSSL_INIT_SETTINGS_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_INIT_set_config_filename(Settings: OPENSSL_INIT_SETTINGS_ptr; const config_filename: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_INIT_set_config_file_flags(Settings: OPENSSL_INIT_SETTINGS_ptr; Flags: Cardinal); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_INIT_set_config_appname(Settings: OPENSSL_INIT_SETTINGS_ptr; const config_appname: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_INIT_free(Settings: OPENSSL_INIT_SETTINGS_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // OPENSSL_sk_* stack functions
-                                        function OPENSSL_sk_num(const st: OPENSSL_STACK_ptr): Integer;
-                                        function OPENSSL_sk_value(const st: OPENSSL_STACK_ptr; i: Integer): Pointer;
-                                        function OPENSSL_sk_set(st: OPENSSL_STACK_ptr; i: Integer; const data: Pointer): Pointer;
-                                        function OPENSSL_sk_new(cmp: OPENSSL_sk_compfunc): OPENSSL_STACK_ptr;
-                                        function OPENSSL_sk_new_null: OPENSSL_STACK_ptr;
-                                        function OPENSSL_sk_new_reserve(c: OPENSSL_sk_compfunc; n: Integer): OPENSSL_STACK_ptr;
-                                        function OPENSSL_sk_reserve(st: OPENSSL_STACK_ptr; n: Integer): Integer;
-                                        procedure OPENSSL_sk_free(st: OPENSSL_STACK_ptr);
-                                        procedure OPENSSL_sk_pop_free(st: OPENSSL_STACK_ptr; Func: OPENSSL_sk_freefunc);
-                                        function OPENSSL_sk_deep_copy(const st: OPENSSL_STACK_ptr; c: OPENSSL_sk_copyfunc; f: OPENSSL_sk_freefunc): OPENSSL_STACK_ptr;
-                                        function OPENSSL_sk_insert(st: OPENSSL_STACK_ptr; const data: Pointer; where_: Integer): Integer;
-                                        function OPENSSL_sk_delete(st: OPENSSL_STACK_ptr; loc: Integer): Pointer;
-                                        function OPENSSL_sk_delete_ptr(st: OPENSSL_STACK_ptr; const p: Pointer): Pointer;
-                                        function OPENSSL_sk_find(st: OPENSSL_STACK_ptr; const data: Pointer): Integer;
-                                        function OPENSSL_sk_find_ex(st: OPENSSL_STACK_ptr; const data: Pointer): Integer;
-                                        function OPENSSL_sk_find_all(st: OPENSSL_STACK_ptr; const data: Pointer; pnum: PInteger): Integer;
-                                        function OPENSSL_sk_push(st: OPENSSL_STACK_ptr; const data: Pointer): Integer;
-                                        function OPENSSL_sk_unshift(st: OPENSSL_STACK_ptr; const data: Pointer): Integer;
-                                        function OPENSSL_sk_shift(st: OPENSSL_STACK_ptr): Pointer;
-                                        function OPENSSL_sk_pop(st: OPENSSL_STACK_ptr): Pointer;
-                                        procedure OPENSSL_sk_zero(st: OPENSSL_STACK_ptr);
-                                        function OPENSSL_sk_set_cmp_func(st: OPENSSL_STACK_ptr; cmp: OPENSSL_sk_compfunc): OPENSSL_sk_compfunc;
-                                        function OPENSSL_sk_dup(const st: OPENSSL_STACK_ptr): OPENSSL_STACK_ptr;
-                                        procedure OPENSSL_sk_sort(st: OPENSSL_STACK_ptr);
-                                        function OPENSSL_sk_is_sorted(const st: OPENSSL_STACK_ptr): Integer;
+                                        function OPENSSL_sk_num(const st: OPENSSL_STACK_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_value(const st: OPENSSL_STACK_ptr; i: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_set(st: OPENSSL_STACK_ptr; i: Integer; const data: Pointer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_new(cmp: OPENSSL_sk_compfunc): OPENSSL_STACK_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_new_null: OPENSSL_STACK_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_new_reserve(c: OPENSSL_sk_compfunc; n: Integer): OPENSSL_STACK_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_reserve(st: OPENSSL_STACK_ptr; n: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_sk_free(st: OPENSSL_STACK_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_sk_pop_free(st: OPENSSL_STACK_ptr; Func: OPENSSL_sk_freefunc); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_deep_copy(const st: OPENSSL_STACK_ptr; c: OPENSSL_sk_copyfunc; f: OPENSSL_sk_freefunc): OPENSSL_STACK_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_insert(st: OPENSSL_STACK_ptr; const data: Pointer; where_: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_delete(st: OPENSSL_STACK_ptr; loc: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_delete_ptr(st: OPENSSL_STACK_ptr; const p: Pointer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_find(st: OPENSSL_STACK_ptr; const data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_find_ex(st: OPENSSL_STACK_ptr; const data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_find_all(st: OPENSSL_STACK_ptr; const data: Pointer; pnum: PInteger): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_push(st: OPENSSL_STACK_ptr; const data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_unshift(st: OPENSSL_STACK_ptr; const data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_shift(st: OPENSSL_STACK_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_pop(st: OPENSSL_STACK_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_sk_zero(st: OPENSSL_STACK_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_set_cmp_func(st: OPENSSL_STACK_ptr; cmp: OPENSSL_sk_compfunc): OPENSSL_sk_compfunc; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_dup(const st: OPENSSL_STACK_ptr): OPENSSL_STACK_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_sk_sort(st: OPENSSL_STACK_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_sk_is_sorted(const st: OPENSSL_STACK_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // OPENSSL_LH_* hash table functions
-                                        function OPENSSL_LH_new(h: OPENSSL_LH_HASHFUNC; c: OPENSSL_LH_COMPFUNC): OPENSSL_LHASH_ptr;
-                                        procedure OPENSSL_LH_free(lh: OPENSSL_LHASH_ptr);
-                                        function OPENSSL_LH_flush(lh: OPENSSL_LHASH_ptr): Integer;
-                                        function OPENSSL_LH_insert(lh: OPENSSL_LHASH_ptr; data: Pointer): Pointer;
-                                        function OPENSSL_LH_delete(lh: OPENSSL_LHASH_ptr; const data: Pointer): Pointer;
-                                        function OPENSSL_LH_retrieve(lh: OPENSSL_LHASH_ptr; const data: Pointer): Pointer;
-                                        procedure OPENSSL_LH_doall(lh: OPENSSL_LHASH_ptr; Func: OPENSSL_LH_DOALL_FUNC);
-                                        procedure OPENSSL_LH_doall_arg(lh: OPENSSL_LHASH_ptr; Func: OPENSSL_LH_DOALL_FUNCARG; arg: Pointer);
-                                        function OPENSSL_LH_strhash(const c: PAnsiChar): Cardinal;
-                                        function OPENSSL_LH_num_items(const lh: OPENSSL_LHASH_ptr): Cardinal;
-                                        function OPENSSL_LH_get_down_load(const lh: OPENSSL_LHASH_ptr): Cardinal;
-                                        procedure OPENSSL_LH_set_down_load(lh: OPENSSL_LHASH_ptr; down_load: Cardinal);
-                                        function OPENSSL_LH_error(lh: OPENSSL_LHASH_ptr): Integer;
-                                        procedure OPENSSL_LH_stats(const lh: OPENSSL_LHASH_ptr; fp: C_FILE_ptr);
-                                        procedure OPENSSL_LH_node_stats(const lh: OPENSSL_LHASH_ptr; fp: C_FILE_ptr);
-                                        procedure OPENSSL_LH_node_usage_stats(const lh: OPENSSL_LHASH_ptr; fp: C_FILE_ptr);
-                                        procedure OPENSSL_LH_stats_bio(const lh: OPENSSL_LHASH_ptr; Out_: BIO_ptr);
-                                        procedure OPENSSL_LH_node_stats_bio(const lh: OPENSSL_LHASH_ptr; Out_: BIO_ptr);
-                                        procedure OPENSSL_LH_node_usage_stats_bio(const lh: OPENSSL_LHASH_ptr; Out_: BIO_ptr);
+                                        function OPENSSL_LH_new(h: OPENSSL_LH_HASHFUNC; c: OPENSSL_LH_COMPFUNC): OPENSSL_LHASH_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_free(lh: OPENSSL_LHASH_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_flush(lh: OPENSSL_LHASH_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_LH_insert(lh: OPENSSL_LHASH_ptr; data: Pointer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_LH_delete(lh: OPENSSL_LHASH_ptr; const data: Pointer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_LH_retrieve(lh: OPENSSL_LHASH_ptr; const data: Pointer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_doall(lh: OPENSSL_LHASH_ptr; Func: OPENSSL_LH_DOALL_FUNC); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_doall_arg(lh: OPENSSL_LHASH_ptr; Func: OPENSSL_LH_DOALL_FUNCARG; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_LH_strhash(const c: PAnsiChar): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_LH_num_items(const lh: OPENSSL_LHASH_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_LH_get_down_load(const lh: OPENSSL_LHASH_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_set_down_load(lh: OPENSSL_LHASH_ptr; down_load: Cardinal); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_LH_error(lh: OPENSSL_LHASH_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_stats(const lh: OPENSSL_LHASH_ptr; fp: C_FILE_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_node_stats(const lh: OPENSSL_LHASH_ptr; fp: C_FILE_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_node_usage_stats(const lh: OPENSSL_LHASH_ptr; fp: C_FILE_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_stats_bio(const lh: OPENSSL_LHASH_ptr; Out_: BIO_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_node_stats_bio(const lh: OPENSSL_LHASH_ptr; Out_: BIO_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OPENSSL_LH_node_usage_stats_bio(const lh: OPENSSL_LHASH_ptr; Out_: BIO_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // ============================================================================
                                         // ERR function declarations (from err.h)
@@ -2297,7 +2367,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function ERR_reason_error_string(e: Cardinal): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ERR_set_error_data(data: PAnsiChar; Flags: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ERR_add_error_data(Num: Integer); cdecl; varargs;
-                                        procedure ERR_clear_error; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ERR_clear_error'; {$ENDIF}
+                                        procedure ERR_clear_error; {$IFDEF __CDECL}cdecl; {$ENDIF} {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ERR_clear_error'; {$ENDIF}
                                         procedure ERR_print_errors(bp: BIO_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ERR_print_errors_cb(cb: ERR_print_errors_cb_func; u: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         // New in 3.x: ERR_new / ERR_set_error
@@ -2462,6 +2532,28 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         // BIO function declarations (from bio.h)
                                         // ============================================================================
 
+    BIO_write_cb = function(b: BIO_ptr; buf: PAnsiChar; len: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    BIO_write_ex_cb = function(b: BIO_ptr; buf: PAnsiChar; len: NativeUInt; written: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    BIO_read_cb = function(b: BIO_ptr; buf: PAnsiChar; len: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    BIO_read_ex_cb = function(b: BIO_ptr; buf: PAnsiChar; len: NativeUInt; readbytes: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    BIO_puts_cb = function(b: BIO_ptr; text: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    BIO_gets_cb = function(b: BIO_ptr; buf: PAnsiChar; len: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    BIO_ctrl_cb = function(b: BIO_ptr; cmd, num: Integer; ptr: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    BIO_create_cb = function(b: BIO_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    BIO_destroy_cb = function(b: BIO_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    BIO_callback_ctrl_cb = function(b: BIO_ptr; cmd: Integer; callback: BIO_info_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+
+    function BIO_meth_get_write(biom: BIO_METHOD_ptr): BIO_write_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    function BIO_meth_get_write_ex(biom: BIO_METHOD_ptr): BIO_write_ex_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    function BIO_meth_get_read(biom: BIO_METHOD_ptr): BIO_read_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    function BIO_meth_get_read_ex(biom: BIO_METHOD_ptr): BIO_read_ex_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    function BIO_meth_get_puts(biom: BIO_METHOD_ptr): BIO_puts_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    function BIO_meth_get_gets(biom: BIO_METHOD_ptr): BIO_gets_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    function BIO_meth_get_ctrl(biom: BIO_METHOD_ptr): BIO_ctrl_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    function BIO_meth_get_create(biom: BIO_METHOD_ptr): BIO_create_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    function BIO_meth_get_destroy(biom: BIO_METHOD_ptr): BIO_destroy_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+    function BIO_meth_get_callback_ctrl(biom: BIO_METHOD_ptr): BIO_callback_ctrl_cb; {$IFDEF __CDECL}cdecl; {$ENDIF}
+
                                         // BIO methods (source/sink factories)
                                         function BIO_s_mem: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_s_file: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -2567,136 +2659,136 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function BIO_ADDR_path_string(const ap: BIO_ADDR_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO networking / sockets
-                                        function BIO_accept_ex(accept_sock: Integer; Addr: BIO_ADDR_ptr; Options: Integer): Integer;
-                                        function BIO_bind(Sock: Integer; const Addr: BIO_ADDR_ptr; Options: Integer): Integer;
-                                        function BIO_closesocket(Sock: Integer): Integer;
-                                        function BIO_connect(Sock: Integer; const Addr: BIO_ADDR_ptr; Options: Integer): Integer;
-                                        function BIO_listen(Sock: Integer; const Addr: BIO_ADDR_ptr; Options: Integer): Integer;
-                                        function BIO_parse_hostserv(const hostserv: PAnsiChar; Host: PPAnsiChar; service: PPAnsiChar; hostserv_prio: BIO_hostserv_priorities): Integer;
+                                        function BIO_accept_ex(accept_sock: Integer; Addr: BIO_ADDR_ptr; Options: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_bind(Sock: Integer; const Addr: BIO_ADDR_ptr; Options: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_closesocket(Sock: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_connect(Sock: Integer; const Addr: BIO_ADDR_ptr; Options: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_listen(Sock: Integer; const Addr: BIO_ADDR_ptr; Options: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_parse_hostserv(const hostserv: PAnsiChar; Host: PPAnsiChar; service: PPAnsiChar; hostserv_prio: BIO_hostserv_priorities): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_lookup(const Host: PAnsiChar; const service: PAnsiChar; lookup_type: BIO_lookup_type; family: Integer; socktype: Integer;
-                                        Res: BIO_ADDRINFO_ptr_ptr): Integer;
+                                        Res: BIO_ADDRINFO_ptr_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_lookup_ex(const Host: PAnsiChar; const service: PAnsiChar; lookup_type: Integer; family: Integer; socktype: Integer; protocol: Integer;
-                                        Res: BIO_ADDRINFO_ptr_ptr): Integer;
-                                        function BIO_sock_error(Sock: Integer): Integer;
-                                        function BIO_sock_init: Integer;
-                                        function BIO_sock_non_fatal_error(Error: Integer): Integer;
-                                        function BIO_sock_should_retry(i: Integer): Integer;
-                                        function BIO_socket(Domain: Integer; socktype: Integer; protocol: Integer; Options: Integer): Integer;
-                                        function BIO_socket_ioctl(FD: Integer; Type_: Integer; arg: Pointer): Integer;
-                                        function BIO_socket_nbio(FD: Integer; Mode: Integer): Integer;
-                                        function BIO_socket_wait(FD: Integer; for_read: Integer; max_time: NativeInt): Integer;
-                                        function BIO_set_tcp_ndelay(Sock: Integer; turn_on: Integer): Integer;
+                                        Res: BIO_ADDRINFO_ptr_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_sock_error(Sock: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_sock_init: Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_sock_non_fatal_error(Error: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_sock_should_retry(i: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_socket(Domain: Integer; socktype: Integer; protocol: Integer; Options: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_socket_ioctl(FD: Integer; Type_: Integer; arg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_socket_nbio(FD: Integer; Mode: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_socket_wait(FD: Integer; for_read: Integer; max_time: C__TIME_T): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_set_tcp_ndelay(Sock: Integer; turn_on: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO control extensions
-                                        function BIO_ctrl_get_read_request(b: BIO_ptr): NativeUInt;
-                                        function BIO_ctrl_get_write_guarantee(b: BIO_ptr): NativeUInt;
-                                        function BIO_ctrl_pending(b: BIO_ptr): NativeUInt;
-                                        function BIO_ctrl_wpending(b: BIO_ptr): NativeUInt;
-                                        function BIO_ctrl_reset_read_request(b: BIO_ptr): Integer;
+                                        function BIO_ctrl_get_read_request(b: BIO_ptr): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_ctrl_get_write_guarantee(b: BIO_ptr): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_ctrl_pending(b: BIO_ptr): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_ctrl_wpending(b: BIO_ptr): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_ctrl_reset_read_request(b: BIO_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO data/state accessors
-                                        procedure BIO_set_data(a: BIO_ptr; Ptr: Pointer);
-                                        function BIO_get_data(a: BIO_ptr): Pointer;
-                                        procedure BIO_set_init(a: BIO_ptr; Init: Integer);
-                                        function BIO_get_init(a: BIO_ptr): Integer;
-                                        procedure BIO_set_shutdown(a: BIO_ptr; shut: Integer);
-                                        function BIO_get_shutdown(a: BIO_ptr): Integer;
-                                        procedure BIO_set_next(b: BIO_ptr; Next: BIO_ptr);
-                                        procedure BIO_copy_next_retry(b: BIO_ptr);
-                                        function BIO_get_new_index: Integer;
-                                        function BIO_get_line(BIO: BIO_ptr; Buf: PAnsiChar; Size: Integer): Integer;
-                                        function BIO_get_retry_BIO(BIO: BIO_ptr; Reason: PInteger): BIO_ptr;
-                                        function BIO_get_retry_reason(BIO: BIO_ptr): Integer;
-                                        procedure BIO_set_retry_reason(BIO: BIO_ptr; Reason: Integer);
-                                        function BIO_method_name(const b: BIO_ptr): PAnsiChar;
-                                        function BIO_method_type(const b: BIO_ptr): Integer;
+                                        procedure BIO_set_data(a: BIO_ptr; Ptr: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_get_data(a: BIO_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_set_init(a: BIO_ptr; Init: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_get_init(a: BIO_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_set_shutdown(a: BIO_ptr; shut: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_get_shutdown(a: BIO_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_set_next(b: BIO_ptr; Next: BIO_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_copy_next_retry(b: BIO_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_get_new_index: Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_get_line(BIO: BIO_ptr; Buf: PAnsiChar; Size: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_get_retry_BIO(BIO: BIO_ptr; Reason: PInteger): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_get_retry_reason(BIO: BIO_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_set_retry_reason(BIO: BIO_ptr; Reason: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_method_name(const b: BIO_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_method_type(const b: BIO_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO callback
-                                        function BIO_get_callback_ex(const b: BIO_ptr): BIO_callback_fn_ex;
-                                        procedure BIO_set_callback_ex(b: BIO_ptr; callback: BIO_callback_fn_ex);
-                                        function BIO_get_callback_arg(const b: BIO_ptr): PAnsiChar;
-                                        procedure BIO_set_callback_arg(b: BIO_ptr; arg: PAnsiChar);
+                                        function BIO_get_callback_ex(const b: BIO_ptr): BIO_callback_fn_ex; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_set_callback_ex(b: BIO_ptr; callback: BIO_callback_fn_ex); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_get_callback_arg(const b: BIO_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_set_callback_arg(b: BIO_ptr; arg: PAnsiChar); {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO debug callback
                                         function BIO_debug_callback_ex(BIO: BIO_ptr; oper: Integer; const argp: PAnsiChar; Len: NativeUInt; argi: Integer; argl: Integer; Ret: Integer;
-                                        processed: PNativeUInt): Integer;
+                                        processed: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO error/retry helpers
-                                        function BIO_err_is_non_fatal(errcode: Cardinal): Integer;
-                                        function BIO_fd_non_fatal_error(Error: Integer): Integer;
-                                        function BIO_fd_should_retry(i: Integer): Integer;
-                                        function BIO_dgram_non_fatal_error(Error: Integer): Integer;
+                                        function BIO_err_is_non_fatal(errcode: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_fd_non_fatal_error(Error: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_fd_should_retry(i: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_dgram_non_fatal_error(Error: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO timeout/connect
-                                        function BIO_do_connect_retry(BIO: BIO_ptr; timeout: Integer; nap_milliseconds: Integer): Integer;
-                                        function BIO_wait(BIO: BIO_ptr; max_time: NativeInt; nap_milliseconds: Cardinal): Integer;
+                                        function BIO_do_connect_retry(BIO: BIO_ptr; timeout: Integer; nap_milliseconds: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_wait(BIO: BIO_ptr; max_time: C__TIME_T; nap_milliseconds: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO dump
-                                        function BIO_dump(b: BIO_ptr; const bytes: Pointer; Len: Integer): Integer;
-                                        function BIO_dump_indent(b: BIO_ptr; const bytes: Pointer; Len: Integer; Indent: Integer): Integer;
-                                        function BIO_dump_fp(fp: C_FILE_ptr; const s: Pointer; Len: Integer): Integer;
-                                        function BIO_dump_indent_fp(fp: C_FILE_ptr; const s: Pointer; Len: Integer; Indent: Integer): Integer;
-                                        function BIO_hex_string(Out_: BIO_ptr; Indent: Integer; width: Integer; const data: Pointer; datalen: Integer): Integer;
+                                        function BIO_dump(b: BIO_ptr; const bytes: Pointer; Len: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_dump_indent(b: BIO_ptr; const bytes: Pointer; Len: Integer; Indent: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_dump_fp(fp: C_FILE_ptr; const s: Pointer; Len: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_dump_indent_fp(fp: C_FILE_ptr; const s: Pointer; Len: Integer; Indent: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_hex_string(Out_: BIO_ptr; Indent: Integer; width: Integer; const data: Pointer; datalen: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO format (varargs and va_list)
-                                        function BIO_vprintf(BIO: BIO_ptr; const Format: PAnsiChar; args: Pointer): Integer;
+                                        function BIO_vprintf(BIO: BIO_ptr; const Format: PAnsiChar; args: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_snprintf(Buf: PAnsiChar; n: NativeUInt; const Format: PAnsiChar): Integer; cdecl; varargs;
-                                        function BIO_vsnprintf(Buf: PAnsiChar; n: NativeUInt; const Format: PAnsiChar; args: Pointer): Integer;
+                                        function BIO_vsnprintf(Buf: PAnsiChar; n: NativeUInt; const Format: PAnsiChar; args: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO pair I/O
-                                        function BIO_nread0(BIO: BIO_ptr; Buf: PPAnsiChar): Integer;
-                                        function BIO_nread(BIO: BIO_ptr; Buf: PPAnsiChar; Num: Integer): Integer;
-                                        function BIO_nwrite0(BIO: BIO_ptr; Buf: PPAnsiChar): Integer;
-                                        function BIO_nwrite(BIO: BIO_ptr; Buf: PPAnsiChar; Num: Integer): Integer;
+                                        function BIO_nread0(BIO: BIO_ptr; Buf: PPAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_nread(BIO: BIO_ptr; Buf: PPAnsiChar; Num: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_nwrite0(BIO: BIO_ptr; Buf: PPAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_nwrite(BIO: BIO_ptr; Buf: PPAnsiChar; Num: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO additional filter methods
-                                        function BIO_f_asn1: BIO_METHOD_ptr;
-                                        function BIO_f_base64: BIO_METHOD_ptr;
-                                        function BIO_f_cipher: BIO_METHOD_ptr;
-                                        function BIO_f_linebuffer: BIO_METHOD_ptr;
-                                        function BIO_f_md: BIO_METHOD_ptr;
-                                        function BIO_f_nbio_test: BIO_METHOD_ptr;
-                                        function BIO_f_prefix: BIO_METHOD_ptr;
-                                        function BIO_f_readbuffer: BIO_METHOD_ptr;
+                                        function BIO_f_asn1: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_f_base64: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_f_cipher: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_f_linebuffer: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_f_md: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_f_nbio_test: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_f_prefix: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_f_readbuffer: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO additional source methods
-                                        function BIO_s_core: BIO_METHOD_ptr;
-                                        function BIO_s_dgram_mem: BIO_METHOD_ptr;
-                                        function BIO_s_dgram_pair: BIO_METHOD_ptr;
-                                        function BIO_s_log: BIO_METHOD_ptr;
-                                        function BIO_s_secmem: BIO_METHOD_ptr;
+                                        function BIO_s_core: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_s_dgram_mem: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_s_dgram_pair: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_s_log: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_s_secmem: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO additional constructors
-                                        function BIO_new_ex(libctx: OSSL_LIB_CTX_ptr; const method: BIO_METHOD_ptr): BIO_ptr;
-                                        function BIO_new_from_core_bio(libctx: OSSL_LIB_CTX_ptr; corebio: OSSL_CORE_BIO_ptr): BIO_ptr;
-                                        function BIO_new_bio_dgram_pair(bio1: BIO_ptr_ptr; writebuf1: NativeUInt; bio2: BIO_ptr_ptr; writebuf2: NativeUInt): Integer;
-                                        function BIO_new_dgram(FD: Integer; close_flag: Integer): BIO_ptr;
-                                        function BIO_new_CMS(Out_: BIO_ptr; cms: CMS_ContentInfo_ptr): BIO_ptr;
-                                        function BIO_new_PKCS7(Out_: BIO_ptr; p7: PKCS7_ptr): BIO_ptr;
+                                        function BIO_new_ex(libctx: OSSL_LIB_CTX_ptr; const method: BIO_METHOD_ptr): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_new_from_core_bio(libctx: OSSL_LIB_CTX_ptr; corebio: OSSL_CORE_BIO_ptr): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_new_bio_dgram_pair(bio1: BIO_ptr_ptr; writebuf1: NativeUInt; bio2: BIO_ptr_ptr; writebuf2: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_new_dgram(FD: Integer; close_flag: Integer): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_new_CMS(Out_: BIO_ptr; cms: CMS_ContentInfo_ptr): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_new_PKCS7(Out_: BIO_ptr; p7: PKCS7_ptr): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO SSL helpers
-                                        function BIO_new_buffer_ssl_connect(ctx: SSL_CTX_ptr): BIO_ptr;
-                                        function BIO_new_ssl(ctx: SSL_CTX_ptr; client: Integer): BIO_ptr;
-                                        function BIO_new_ssl_connect(ctx: SSL_CTX_ptr): BIO_ptr;
-                                        function BIO_ssl_copy_session_id(to_: BIO_ptr; From_: BIO_ptr): Integer;
-                                        procedure BIO_ssl_shutdown(ssl_bio: BIO_ptr);
+                                        function BIO_new_buffer_ssl_connect(ctx: SSL_CTX_ptr): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_new_ssl(ctx: SSL_CTX_ptr; client: Integer): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_new_ssl_connect(ctx: SSL_CTX_ptr): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_ssl_copy_session_id(to_: BIO_ptr; From_: BIO_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_ssl_shutdown(ssl_bio: BIO_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO_METHOD creation
-                                        function BIO_meth_new(Type_: Integer; const Name: PAnsiChar): BIO_METHOD_ptr;
-                                        procedure BIO_meth_free(biom: BIO_METHOD_ptr);
-                                        function BIO_meth_set_write(biom: BIO_METHOD_ptr; write: Pointer): Integer;
-                                        function BIO_meth_set_write_ex(biom: BIO_METHOD_ptr; bwrite: Pointer): Integer;
-                                        function BIO_meth_set_read(biom: BIO_METHOD_ptr; read: Pointer): Integer;
-                                        function BIO_meth_set_read_ex(biom: BIO_METHOD_ptr; bread: Pointer): Integer;
-                                        function BIO_meth_set_puts(biom: BIO_METHOD_ptr; puts: Pointer): Integer;
-                                        function BIO_meth_set_gets(biom: BIO_METHOD_ptr; gets: Pointer): Integer;
-                                        function BIO_meth_set_ctrl(biom: BIO_METHOD_ptr; ctrl: Pointer): Integer;
-                                        function BIO_meth_set_create(biom: BIO_METHOD_ptr; create: Pointer): Integer;
-                                        function BIO_meth_set_destroy(biom: BIO_METHOD_ptr; destroy: Pointer): Integer;
-                                        function BIO_meth_set_callback_ctrl(biom: BIO_METHOD_ptr; callback_ctrl: Pointer): Integer;
+                                        function BIO_meth_new(Type_: Integer; const Name: PAnsiChar): BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_meth_free(biom: BIO_METHOD_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_write(biom: BIO_METHOD_ptr; write: BIO_write_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_write_ex(biom: BIO_METHOD_ptr; bwrite: BIO_write_ex_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_read(biom: BIO_METHOD_ptr; read: BIO_read_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_read_ex(biom: BIO_METHOD_ptr; bread: BIO_read_ex_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_puts(biom: BIO_METHOD_ptr; puts: BIO_puts_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_gets(biom: BIO_METHOD_ptr; gets: BIO_gets_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_ctrl(biom: BIO_METHOD_ptr; ctrl: BIO_ctrl_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_create(biom: BIO_METHOD_ptr; create: BIO_create_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_destroy(biom: BIO_METHOD_ptr; destroy: BIO_destroy_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_meth_set_callback_ctrl(biom: BIO_METHOD_ptr; callback_ctrl: BIO_callback_ctrl_cb): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // BIO cipher helper
-                                        procedure BIO_set_cipher(b: BIO_ptr; const c: EVP_CIPHER_ptr; const key: PByte; const iv: PByte; enc: Integer);
+                                        function BIO_set_cipher(b: BIO_ptr; const c: EVP_CIPHER_ptr; const key: PByte; const iv: PByte; enc: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 
                                         // ============================================================================
                                         // EVP Message Digest function declarations (from evp.h)
@@ -2891,11 +2983,11 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         // ============================================================================
                                         // EVP Base64 function declarations
                                         // ============================================================================
-                                        function EVP_EncodeInit(ctx: EVP_ENCODE_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure EVP_EncodeInit(ctx: EVP_ENCODE_CTX_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_EncodeUpdate(ctx: EVP_ENCODE_CTX_ptr; Out_: PByte; outl: PInteger; const In_: PByte; inl: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure EVP_EncodeFinal(ctx: EVP_ENCODE_CTX_ptr; Out_: PByte; outl: PInteger); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_EncodeBlock(t: PByte; const f: PByte; n: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function EVP_DecodeInit(ctx: EVP_ENCODE_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure EVP_DecodeInit(ctx: EVP_ENCODE_CTX_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_DecodeUpdate(ctx: EVP_ENCODE_CTX_ptr; Out_: PByte; outl: PInteger; const In_: PByte; inl: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_DecodeFinal(ctx: EVP_ENCODE_CTX_ptr; Out_: PByte; outl: PInteger): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_DecodeBlock(t: PByte; const f: PByte; n: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -3250,7 +3342,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function ASN1_STRING_cmp(const a: ASN1_STRING_ptr; const b: ASN1_STRING_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         // ASN1_TIME
                                         function ASN1_TIME_print(fp: BIO_ptr; const a: ASN1_TIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function ASN1_TIME_set(s: ASN1_TIME_ptr; t: NativeInt): ASN1_TIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASN1_TIME_set(s: ASN1_TIME_ptr; t: C__TIME_T): ASN1_TIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TIME_set_string(s: ASN1_TIME_ptr; const Str: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TIME_diff(pday: PInteger; psec: PInteger; const From: ASN1_TIME_ptr; const to_: ASN1_TIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TIME_new: ASN1_TIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -3303,8 +3395,8 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function BN_rand_range(rnd: BIGNUM_ptr; const range: BIGNUM_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_pseudo_rand(rnd: BIGNUM_ptr; bits: Integer; top: Integer; bottom: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         // Set value
-                                        function BN_set_word(a: BIGNUM_ptr; w: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_get_word(const a: BIGNUM_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_set_word(a: BIGNUM_ptr; w: BN_ULONG): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_get_word(const a: BIGNUM_ptr): BN_ULONG; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         // ============================================================================
                                         // RSA function declarations (deprecated in 3.x, included for compat)
                                         // ============================================================================
@@ -3348,8 +3440,8 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         // ============================================================================
                                         function RAND_bytes(Buf: PByte; Num: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function RAND_priv_bytes(Buf: PByte; Num: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function RAND_seed(const Buf: Pointer; Num: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function RAND_add(const Buf: Pointer; Num: Integer; randomness: Double): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure RAND_seed(const Buf: Pointer; Num: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure RAND_add(const Buf: Pointer; Num: Integer; randomness: Double); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function RAND_status: Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         // ============================================================================
                                         // HMAC function declarations (from hmac.h)
@@ -3463,7 +3555,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function OSSL_PARAM_get_uint64(const p: OSSL_PARAM_ptr; Val: PUInt64): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_get_double(const p: OSSL_PARAM_ptr; Val: PDouble): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_get_utf8_string(const p: OSSL_PARAM_ptr; Val: PPAnsiChar; max_len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_PARAM_get_octet_string(const p: OSSL_PARAM_ptr; Val: PPointer; max_len: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_PARAM_get_octet_string(const p: OSSL_PARAM_ptr; Val: PPointer; max_len: NativeUInt; used_len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_get_utf8_string_ptr(const p: OSSL_PARAM_ptr; Val: PPAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_get_octet_string_ptr(const p: OSSL_PARAM_ptr; Val: PPointer; used_len: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         // OSSL_PARAM setters
@@ -3672,9 +3764,9 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_sm3: EVP_MD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_whirlpool: EVP_MD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { MD operations }
-                                        procedure EVP_MD_do_all(fn: EVP_do_all_provided_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure EVP_MD_do_all(fn: EVP_do_all_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure EVP_MD_do_all_provided(libctx: OSSL_LIB_CTX_ptr; fn: EVP_do_all_provided_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_MD_do_all_sorted(fn: EVP_do_all_provided_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure EVP_MD_do_all_sorted(fn: EVP_do_all_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MD_get0_description(md: EVP_MD_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MD_get0_name(md: EVP_MD_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MD_get0_provider(md: EVP_MD_ptr): OSSL_PROVIDER_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -3682,7 +3774,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_MD_gettable_ctx_params(md: EVP_MD_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MD_gettable_params(digest: EVP_MD_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MD_is_a(md: EVP_MD_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_MD_names_do_all(Obj: Pointer; fn: EVP_do_all_provided_fn; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_MD_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MD_settable_ctx_params(md: EVP_MD_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MD_xof(md: EVP_MD_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { MD_CTX operations }
@@ -3719,9 +3811,9 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         { CIPHER operations }
                                         function EVP_CIPHER_asn1_to_param(c: EVP_CIPHER_CTX_ptr; Type_: ASN1_TYPE_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_CIPHER_can_pipeline(cipher: EVP_CIPHER_ptr; enc: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_CIPHER_do_all(fn: EVP_do_all_provided_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure EVP_CIPHER_do_all(fn: EVP_do_all_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure EVP_CIPHER_do_all_provided(libctx: OSSL_LIB_CTX_ptr; fn: EVP_do_all_provided_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_CIPHER_do_all_sorted(fn: EVP_do_all_provided_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure EVP_CIPHER_do_all_sorted(fn: EVP_do_all_fn; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_CIPHER_get0_description(cipher: EVP_CIPHER_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_CIPHER_get0_name(cipher: EVP_CIPHER_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_CIPHER_get0_provider(cipher: EVP_CIPHER_ptr): OSSL_PROVIDER_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -3732,7 +3824,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_CIPHER_gettable_params(cipher: EVP_CIPHER_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_CIPHER_impl_ctx_size(cipher: EVP_CIPHER_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_CIPHER_is_a(cipher: EVP_CIPHER_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_CIPHER_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_CIPHER_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_CIPHER_param_to_asn1(c: EVP_CIPHER_CTX_ptr; Type_: ASN1_TYPE_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_CIPHER_set_asn1_iv(c: EVP_CIPHER_CTX_ptr; Type_: ASN1_TYPE_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_CIPHER_settable_ctx_params(cipher: EVP_CIPHER_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -3872,7 +3964,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_PKEY_sign_message_update(ctx: EVP_PKEY_CTX_ptr; In_: PByte; inlen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_PKEY_todata(pkey: EVP_PKEY_ptr; selection: Integer; params: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_PKEY_type(Type_: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_PKEY_type_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_PKEY_type_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_PKEY_verify_init_ex2(ctx: EVP_PKEY_CTX_ptr; algo: EVP_SIGNATURE_ptr; params: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_PKEY_verify_message_final(ctx: EVP_PKEY_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_PKEY_verify_message_init(ctx: EVP_PKEY_CTX_ptr; algo: EVP_SIGNATURE_ptr; params: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -3957,7 +4049,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_MAC_init(ctx: EVP_MAC_CTX_ptr; key: PByte; keylen: NativeUInt; params: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MAC_init_SKEY(ctx: EVP_MAC_CTX_ptr; skey: EVP_SKEY_ptr; params: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MAC_is_a(mac: EVP_MAC_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_MAC_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_MAC_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MAC_settable_ctx_params(mac: EVP_MAC_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MAC_up_ref(mac: EVP_MAC_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_MAC_update(ctx: EVP_MAC_CTX_ptr; data: PByte; datalen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -3986,7 +4078,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_KDF_gettable_ctx_params(kdf: EVP_KDF_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KDF_gettable_params(kdf: EVP_KDF_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KDF_is_a(kdf: EVP_KDF_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_KDF_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_KDF_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KDF_settable_ctx_params(kdf: EVP_KDF_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KDF_up_ref(kdf: EVP_KDF_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { RAND operations }
@@ -4015,7 +4107,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_RAND_instantiate(ctx: EVP_RAND_CTX_ptr; strength: Cardinal; prediction_resistance: Integer; pstr: PByte; pstr_len: NativeUInt; params: Pointer)
                                         : Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_RAND_is_a(rand: EVP_RAND_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_RAND_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_RAND_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_RAND_nonce(ctx: EVP_RAND_CTX_ptr; Out_: PByte; outlen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_RAND_reseed(ctx: EVP_RAND_CTX_ptr; prediction_resistance: Integer; ent: PByte; ent_len: NativeUInt; addin: PByte; addin_len: NativeUInt): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4037,7 +4129,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_ASYM_CIPHER_get0_provider(cipher: EVP_ASYM_CIPHER_ptr): OSSL_PROVIDER_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_ASYM_CIPHER_gettable_ctx_params(ciph: EVP_ASYM_CIPHER_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_ASYM_CIPHER_is_a(cipher: EVP_ASYM_CIPHER_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_ASYM_CIPHER_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_ASYM_CIPHER_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_ASYM_CIPHER_settable_ctx_params(ciph: EVP_ASYM_CIPHER_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_ASYM_CIPHER_up_ref(cipher: EVP_ASYM_CIPHER_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { KEM operations }
@@ -4049,7 +4141,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_KEM_get0_provider(wrap: EVP_KEM_ptr): OSSL_PROVIDER_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEM_gettable_ctx_params(kem: EVP_KEM_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEM_is_a(wrap: EVP_KEM_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_KEM_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_KEM_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEM_settable_ctx_params(kem: EVP_KEM_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEM_up_ref(wrap: EVP_KEM_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { KEYEXCH operations }
@@ -4061,7 +4153,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_KEYEXCH_get0_provider(exchange: EVP_KEYEXCH_ptr): OSSL_PROVIDER_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEYEXCH_gettable_ctx_params(keyexch: EVP_KEYEXCH_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEYEXCH_is_a(keyexch: EVP_KEYEXCH_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_KEYEXCH_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_KEYEXCH_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEYEXCH_settable_ctx_params(keyexch: EVP_KEYEXCH_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEYEXCH_up_ref(exchange: EVP_KEYEXCH_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { KEYMGMT operations }
@@ -4075,7 +4167,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_KEYMGMT_get0_provider(keymgmt: EVP_KEYMGMT_ptr): OSSL_PROVIDER_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEYMGMT_gettable_params(keymgmt: EVP_KEYMGMT_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEYMGMT_is_a(keymgmt: EVP_KEYMGMT_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_KEYMGMT_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_KEYMGMT_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEYMGMT_settable_params(keymgmt: EVP_KEYMGMT_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_KEYMGMT_up_ref(keymgmt: EVP_KEYMGMT_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { SIGNATURE operations }
@@ -4094,7 +4186,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
 {$ENDIF}
 {$ENDIF}
                                         function EVP_SIGNATURE_is_a(signature: EVP_SIGNATURE_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_SIGNATURE_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_SIGNATURE_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_SIGNATURE_settable_ctx_params(sig: EVP_SIGNATURE_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_SIGNATURE_up_ref(signature: EVP_SIGNATURE_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { SKEY operations }
@@ -4107,7 +4199,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function EVP_SKEYMGMT_get0_name(keymgmt: EVP_SKEYMGMT_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_SKEYMGMT_get0_provider(keymgmt: EVP_SKEYMGMT_ptr): OSSL_PROVIDER_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_SKEYMGMT_is_a(keymgmt: EVP_SKEYMGMT_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure EVP_SKEYMGMT_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EVP_SKEYMGMT_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_SKEYMGMT_up_ref(keymgmt: EVP_SKEYMGMT_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EVP_SKEY_export(skey: EVP_SKEY_ptr; selection: Integer; export_cb: Pointer; export_cbarg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure EVP_SKEY_free(skey: EVP_SKEY_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4200,7 +4292,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         procedure DumpStubCounters;
                                         procedure GetStubCounts(out MallocCount, FreeCount, ReallocCount: Integer);
 {$ENDIF}
-                                        function OPENSSL_version_major: Cardinal; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_version_major'; {$ENDIF}
+                                        function OPENSSL_version_major: Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF} {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_version_major'; {$ENDIF}
                                         { OpenSSL API ? auto-generated typed declarations (Phases 4-6) }
 
                                         { ADMISSION }
@@ -4237,11 +4329,11 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function ASN1_ENUMERATED_set(a: ASN1_ENUMERATED_ptr; v: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_ENUMERATED_set_int64(a: ASN1_ENUMERATED_ptr; r: Int64): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_ENUMERATED_to_BN(ai: ASN1_ENUMERATED_ptr; bn: BIGNUM_ptr): BIGNUM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function ASN1_GENERALIZEDTIME_adj(s: ASN1_GENERALIZEDTIME_ptr; t: NativeInt; offset_day: Integer; offset_sec: Integer): ASN1_GENERALIZEDTIME_ptr;
+                                        function ASN1_GENERALIZEDTIME_adj(s: ASN1_GENERALIZEDTIME_ptr; t: C__TIME_T; offset_day: Integer; offset_sec: Integer): ASN1_GENERALIZEDTIME_ptr;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_GENERALIZEDTIME_check(a: ASN1_GENERALIZEDTIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_GENERALIZEDTIME_print(fp: BIO_ptr; a: ASN1_GENERALIZEDTIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function ASN1_GENERALIZEDTIME_set(s: ASN1_GENERALIZEDTIME_ptr; t: NativeInt): ASN1_GENERALIZEDTIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASN1_GENERALIZEDTIME_set(s: ASN1_GENERALIZEDTIME_ptr; t: C__TIME_T): ASN1_GENERALIZEDTIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_GENERALIZEDTIME_set_string(s: ASN1_GENERALIZEDTIME_ptr; Str: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_ITEM_get(i: NativeUInt): ASN1_ITEM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_ITEM_lookup(Name: PAnsiChar): ASN1_ITEM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4265,11 +4357,11 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function ASN1_SCTX_get_template(p: ASN1_SCTX_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ASN1_SCTX_set_app_data(p: ASN1_SCTX_ptr; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_UNIVERSALSTRING_to_string(s: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function ASN1_UTCTIME_adj(s: ASN1_UTCTIME_ptr; t: NativeInt; offset_day: Integer; offset_sec: Integer): ASN1_UTCTIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASN1_UTCTIME_adj(s: ASN1_UTCTIME_ptr; t: C__TIME_T; offset_day: Integer; offset_sec: Integer): ASN1_UTCTIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_UTCTIME_check(a: ASN1_UTCTIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function ASN1_UTCTIME_cmp_time_t(s: ASN1_UTCTIME_ptr; t: NativeInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASN1_UTCTIME_cmp_time_t(s: ASN1_UTCTIME_ptr; t: C__TIME_T): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_UTCTIME_print(fp: BIO_ptr; a: ASN1_UTCTIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function ASN1_UTCTIME_set(s: ASN1_UTCTIME_ptr; t: NativeInt): ASN1_UTCTIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASN1_UTCTIME_set(s: ASN1_UTCTIME_ptr; t: C__TIME_T): ASN1_UTCTIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_UTCTIME_set_string(s: ASN1_UTCTIME_ptr; Str: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ASN1_add_oid_module; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ASN1_add_stable_module; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4388,9 +4480,9 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function ASN1_STRING_to_UTF8(Out_: PPByte; In_: ASN1_STRING_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_STRING_type_new(Type_: Integer): ASN1_STRING_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { ASN1_TIME }
-                                        function ASN1_TIME_adj(s: ASN1_TIME_ptr; t: NativeInt; offset_day: Integer; offset_sec: Integer): ASN1_TIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASN1_TIME_adj(s: ASN1_TIME_ptr; t: C__TIME_T; offset_day: Integer; offset_sec: Integer): ASN1_TIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TIME_check(t: ASN1_TIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function ASN1_TIME_cmp_time_t(s: ASN1_TIME_ptr; t: NativeInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASN1_TIME_cmp_time_t(s: ASN1_TIME_ptr; t: C__TIME_T): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TIME_compare(a: ASN1_TIME_ptr; b: ASN1_TIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TIME_normalize(s: ASN1_TIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TIME_print_ex(bp: BIO_ptr; tm: ASN1_TIME_ptr; Flags: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4402,6 +4494,8 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function ASN1_TYPE_get_int_octetstring(a: ASN1_TYPE_ptr; Num: PInteger; data: PByte; max_len: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TYPE_get_octetstring(a: ASN1_TYPE_ptr; data: PByte; max_len: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TYPE_pack_sequence(it: ASN1_ITEM_ptr; s: Pointer; t: Pointer): ASN1_TYPE_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASN1_TYPE_new: ASN1_TYPE_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure ASN1_TYPE_free(a: ASN1_TYPE_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ASN1_TYPE_set(a: ASN1_TYPE_ptr; Type_: Integer; value: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TYPE_set1(a: ASN1_TYPE_ptr; Type_: Integer; value: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASN1_TYPE_set_int_octetstring(a: ASN1_TYPE_ptr; Num: Integer; data: PByte; Len: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4411,13 +4505,13 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function ASYNC_WAIT_CTX_clear_fd(ctx: ASYNC_WAIT_CTX_ptr; key: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ASYNC_WAIT_CTX_free(ctx: ASYNC_WAIT_CTX_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASYNC_WAIT_CTX_get_all_fds(ctx: ASYNC_WAIT_CTX_ptr; FD: Pointer; numfds: PNativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function ASYNC_WAIT_CTX_get_callback(ctx: ASYNC_WAIT_CTX_ptr; callback: Pointer; callback_arg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASYNC_WAIT_CTX_get_callback(ctx: ASYNC_WAIT_CTX_ptr; callback: ASYNC_callback_fn_ptr; callback_arg: PPointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASYNC_WAIT_CTX_get_changed_fds(ctx: ASYNC_WAIT_CTX_ptr; addfd: Pointer; numaddfds: PNativeUInt; delfd: Pointer; numdelfds: PNativeUInt): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASYNC_WAIT_CTX_get_fd(ctx: ASYNC_WAIT_CTX_ptr; key: Pointer; FD: Pointer; custom_data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASYNC_WAIT_CTX_get_status(ctx: ASYNC_WAIT_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASYNC_WAIT_CTX_new: ASYNC_WAIT_CTX_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function ASYNC_WAIT_CTX_set_callback(ctx: ASYNC_WAIT_CTX_ptr; callback: Pointer; callback_arg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function ASYNC_WAIT_CTX_set_callback(ctx: ASYNC_WAIT_CTX_ptr; callback: ASYNC_callback_fn; callback_arg: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function ASYNC_WAIT_CTX_set_status(ctx: ASYNC_WAIT_CTX_ptr; status: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ASYNC_block_pause; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure ASYNC_cleanup_thread; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4450,7 +4544,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function BIO_f_zlib: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_f_zstd: BIO_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_get_accept_socket(host_port: PAnsiChar; Mode: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BIO_get_callback(b: BIO_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_get_callback(b: BIO_ptr): BIO_callback_fn; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_get_host_ip(Str: PAnsiChar; ip: PByte): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_get_port(Str: PAnsiChar; port_ptr: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_get_rpoll_descriptor(b: BIO_ptr; desc: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4461,7 +4555,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BIO_sendmmsg(b: BIO_ptr; msg: Pointer; stride: NativeUInt; num_msg: NativeUInt; Flags: UInt64; msgs_processed: PNativeUInt): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure BIO_set_callback(b: BIO_ptr; callback: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BIO_set_callback(b: BIO_ptr; callback: BIO_callback_fn); {$IFDEF __CDECL}cdecl; {$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -4469,7 +4563,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
 {$ENDIF}
 {$ENDIF}
 {$ENDIF}
-                                        function BIO_sock_info(Sock: Integer; Type_: Pointer; info: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BIO_sock_info(Sock: Integer; Type_: Integer; info: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { BN }
                                         function BN_BLINDING_convert(n: BIGNUM_ptr; b: BN_BLINDING_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_BLINDING_convert_ex(n: BIGNUM_ptr; r: BIGNUM_ptr; b: BN_BLINDING_ptr; param: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4523,8 +4617,8 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function BN_X931_generate_Xpq(Xp: BIGNUM_ptr; Xq: BIGNUM_ptr; nbits: Integer; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_X931_generate_prime_ex(p: BIGNUM_ptr; p1: BIGNUM_ptr; p2: BIGNUM_ptr; Xp1: BIGNUM_ptr; Xp2: BIGNUM_ptr; Xp: BIGNUM_ptr; e: BIGNUM_ptr;
                                         ctx: BN_CTX_ptr; cb: BN_GENCB_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_abs_is_word(a: BIGNUM_ptr; w: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_add_word(a: BIGNUM_ptr; w: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_abs_is_word(a: BIGNUM_ptr; w: BN_ULONG): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_add_word(a: BIGNUM_ptr; w: BN_ULONG): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_are_coprime(a: BIGNUM_ptr; b: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_asc2bn(a: Pointer; Str: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_bn2lebinpad(a: BIGNUM_ptr; to_: PByte; tolen: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4534,9 +4628,9 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function BN_check_prime(p: BIGNUM_ptr; ctx: BN_CTX_ptr; cb: BN_GENCB_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure BN_clear(a: BIGNUM_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_clear_bit(a: BIGNUM_ptr; n: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure BN_consttime_swap(swap: Cardinal; a: BIGNUM_ptr; b: BIGNUM_ptr; nwords: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure BN_consttime_swap(swap: BN_ULONG; a: BIGNUM_ptr; b: BIGNUM_ptr; nwords: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_div_recp(dv: BIGNUM_ptr; rem: BIGNUM_ptr; m: BIGNUM_ptr; recp: BN_RECP_CTX_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_div_word(a: BIGNUM_ptr; w: Cardinal): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_div_word(a: BIGNUM_ptr; w: BN_ULONG): BN_ULONG; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_from_montgomery(r: BIGNUM_ptr; a: BIGNUM_ptr; mont: BN_MONT_CTX_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_generate_dsa_nonce(Out_: BIGNUM_ptr; range: BIGNUM_ptr; priv: BIGNUM_ptr; message: PByte; message_len: NativeUInt; ctx: BN_CTX_ptr): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4564,7 +4658,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function BN_is_prime_ex(p: BIGNUM_ptr; nchecks: Integer; ctx: BN_CTX_ptr; cb: BN_GENCB_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_is_prime_fasttest_ex(p: BIGNUM_ptr; nchecks: Integer; ctx: BN_CTX_ptr; do_trial_division: Integer; cb: BN_GENCB_ptr): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_is_word(a: BIGNUM_ptr; w: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_is_word(a: BIGNUM_ptr; w: BN_ULONG): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_kronecker(a: BIGNUM_ptr; b: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_lebin2bn(s: PByte; Len: Integer; Ret: BIGNUM_ptr): BIGNUM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_lshift(r: BIGNUM_ptr; a: BIGNUM_ptr; n: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4580,7 +4674,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_mod_exp_mont_consttime_x2(rr1: BIGNUM_ptr; a1: BIGNUM_ptr; p1: BIGNUM_ptr; m1: BIGNUM_ptr; in_mont1: BN_MONT_CTX_ptr; rr2: BIGNUM_ptr;
                                         a2: BIGNUM_ptr; p2: BIGNUM_ptr; m2: BIGNUM_ptr; in_mont2: BN_MONT_CTX_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_mod_exp_mont_word(r: BIGNUM_ptr; a: Cardinal; p: BIGNUM_ptr; m: BIGNUM_ptr; ctx: BN_CTX_ptr; m_ctx: BN_MONT_CTX_ptr): Integer;
+                                        function BN_mod_exp_mont_word(r: BIGNUM_ptr; a: BN_ULONG; p: BIGNUM_ptr; m: BIGNUM_ptr; ctx: BN_CTX_ptr; m_ctx: BN_MONT_CTX_ptr): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_mod_exp_recp(r: BIGNUM_ptr; a: BIGNUM_ptr; p: BIGNUM_ptr; m: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_mod_exp_simple(r: BIGNUM_ptr; a: BIGNUM_ptr; p: BIGNUM_ptr; m: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4596,9 +4690,9 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function BN_mod_sqrt(Ret: BIGNUM_ptr; a: BIGNUM_ptr; n: BIGNUM_ptr; ctx: BN_CTX_ptr): BIGNUM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_mod_sub(r: BIGNUM_ptr; a: BIGNUM_ptr; b: BIGNUM_ptr; m: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_mod_sub_quick(r: BIGNUM_ptr; a: BIGNUM_ptr; b: BIGNUM_ptr; m: BIGNUM_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_mod_word(a: BIGNUM_ptr; w: Cardinal): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_mod_word(a: BIGNUM_ptr; w: BN_ULONG): BN_ULONG; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_mpi2bn(s: PByte; Len: Integer; Ret: BIGNUM_ptr): BIGNUM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_mul_word(a: BIGNUM_ptr; w: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_mul_word(a: BIGNUM_ptr; w: BN_ULONG): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_native2bn(s: PByte; Len: Integer; Ret: BIGNUM_ptr): BIGNUM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_nist_mod_192(r: BIGNUM_ptr; a: BIGNUM_ptr; p: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_nist_mod_224(r: BIGNUM_ptr; a: BIGNUM_ptr; p: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4606,7 +4700,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function BN_nist_mod_384(r: BIGNUM_ptr; a: BIGNUM_ptr; p: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_nist_mod_521(r: BIGNUM_ptr; a: BIGNUM_ptr; p: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_nnmod(r: BIGNUM_ptr; m: BIGNUM_ptr; d: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_num_bits_word(l: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_num_bits_word(l: BN_ULONG): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_options: PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_print(BIO: BIO_ptr; a: BIGNUM_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_print_fp(fp: Pointer; a: BIGNUM_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4635,7 +4729,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function BN_signed_lebin2bn(s: PByte; Len: Integer; Ret: BIGNUM_ptr): BIGNUM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_signed_native2bn(s: PByte; Len: Integer; Ret: BIGNUM_ptr): BIGNUM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_sqr(r: BIGNUM_ptr; a: BIGNUM_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function BN_sub_word(a: BIGNUM_ptr; w: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function BN_sub_word(a: BIGNUM_ptr; w: BN_ULONG): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure BN_swap(a: BIGNUM_ptr; b: BIGNUM_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_to_ASN1_ENUMERATED(bn: BIGNUM_ptr; ai: ASN1_ENUMERATED_ptr): ASN1_ENUMERATED_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function BN_to_montgomery(r: BIGNUM_ptr; a: BIGNUM_ptr; mont: BN_MONT_CTX_ptr; ctx: BN_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4703,7 +4797,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function CMS_RecipientInfo_ktri_get0_signer_id(ri: CMS_RecipientInfo_ptr; keyid: Pointer; issuer: Pointer; sno: Pointer): Integer; {$IFDEF __CDECL}cdecl;
                                         {$ENDIF}
                                         function CMS_RecipientInfo_set0_key(ri: CMS_RecipientInfo_ptr; key: PByte; keylen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function CMS_RecipientInfo_set0_password(ri: CMS_RecipientInfo_ptr; pass: PByte; passlen: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CMS_RecipientInfo_set0_password(ri: CMS_RecipientInfo_ptr; pass: PByte; passlen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_RecipientInfo_set0_pkey(ri: CMS_RecipientInfo_ptr; pkey: EVP_PKEY_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_RecipientInfo_type(ri: CMS_RecipientInfo_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_SharedInfo_encode(pder: PPByte; kekalg: X509_ALGOR_ptr; ukm: ASN1_OCTET_STRING_ptr; keylen: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4731,7 +4825,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function CMS_add0_crl(cms: CMS_ContentInfo_ptr; crl: X509_CRL_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_add0_recipient_key(cms: CMS_ContentInfo_ptr; nid: Integer; key: PByte; keylen: NativeUInt; id: PByte; idlen: NativeUInt;
                                         date: ASN1_GENERALIZEDTIME_ptr; otherTypeId: ASN1_OBJECT_ptr; otherType: ASN1_TYPE_ptr): CMS_RecipientInfo_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function CMS_add0_recipient_password(cms: CMS_ContentInfo_ptr; iter: Integer; wrap_nid: Integer; pbe_nid: Integer; pass: PByte; passlen: Pointer;
+                                        function CMS_add0_recipient_password(cms: CMS_ContentInfo_ptr; iter: Integer; wrap_nid: Integer; pbe_nid: Integer; pass: PByte; passlen: NativeUInt;
                                         kekciph: EVP_CIPHER_ptr): CMS_RecipientInfo_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_add1_ReceiptRequest(si: CMS_SignerInfo_ptr; rr: CMS_ReceiptRequest_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_add1_cert(cms: CMS_ContentInfo_ptr; cert: X509_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4755,7 +4849,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function CMS_data_create(In_: BIO_ptr; Flags: Cardinal): CMS_ContentInfo_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_data_create_ex(In_: BIO_ptr; Flags: Cardinal; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar): CMS_ContentInfo_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_decrypt_set1_key(cms: CMS_ContentInfo_ptr; key: PByte; keylen: NativeUInt; id: PByte; idlen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function CMS_decrypt_set1_password(cms: CMS_ContentInfo_ptr; pass: PByte; passlen: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CMS_decrypt_set1_password(cms: CMS_ContentInfo_ptr; pass: PByte; passlen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_decrypt_set1_pkey(cms: CMS_ContentInfo_ptr; pk: EVP_PKEY_ptr; cert: X509_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_decrypt_set1_pkey_and_peer(cms: CMS_ContentInfo_ptr; pk: EVP_PKEY_ptr; cert: X509_ptr; peer: X509_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CMS_digest_create(In_: BIO_ptr; md: EVP_MD_ptr; Flags: Cardinal): CMS_ContentInfo_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4839,8 +4933,8 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function CRYPTO_128_wrap(key: Pointer; iv: PByte; Out_: PByte; In_: PByte; inlen: NativeUInt; block: Pointer): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CRYPTO_128_wrap_pad(key: Pointer; icv: PByte; Out_: PByte; In_: PByte; inlen: NativeUInt; block: Pointer): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CRYPTO_THREAD_cleanup_local(key: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function CRYPTO_THREAD_compare_id(a: Pointer; b: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function CRYPTO_THREAD_get_current_id: Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_THREAD_compare_id(a: Cardinal; b: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function CRYPTO_THREAD_get_current_id: Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CRYPTO_THREAD_get_local(key: Pointer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CRYPTO_THREAD_set_local(key: Pointer; Val: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function CRYPTO_aligned_alloc(Num: NativeUInt; align: NativeUInt; freeptr: Pointer; File_: PAnsiChar; Line: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -4976,7 +5070,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         procedure Camellia_ofb128_encrypt(In_: PByte; Out_: PByte; length: NativeUInt; key: Pointer; ivec: PByte; Num: PInteger); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function Camellia_set_key(userKey: PByte; bits: Integer; key: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { DES }
-                                        function DES_cbc_cksum(input: PByte; output: Pointer; length: Integer; schedule: Pointer; ivec: Pointer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function DES_cbc_cksum(input: PByte; output: Pointer; length: Integer; schedule: Pointer; ivec: Pointer): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure DES_cbc_encrypt(input: PByte; output: PByte; length: Integer; schedule: Pointer; ivec: Pointer; enc: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure DES_cfb64_encrypt(In_: PByte; Out_: PByte; length: Integer; schedule: Pointer; ivec: Pointer; Num: PInteger; enc: Integer); {$IFDEF __CDECL}cdecl;
                                         {$ENDIF}
@@ -5006,7 +5100,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         procedure DES_ofb_encrypt(In_: PByte; Out_: PByte; numbits: Integer; length: Integer; schedule: Pointer; ivec: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function DES_options: PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure DES_pcbc_encrypt(input: PByte; output: PByte; length: Integer; schedule: Pointer; ivec: Pointer; enc: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function DES_quad_cksum(input: PByte; output: Pointer; length: Integer; out_count: Integer; seed: Pointer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function DES_quad_cksum(input: PByte; output: Pointer; length: Integer; out_count: Integer; seed: Pointer): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function DES_random_key(Ret: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function DES_set_key(key: Pointer; schedule: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function DES_set_key_checked(key: Pointer; schedule: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -5191,7 +5285,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         procedure EC_GROUP_set_curve_name(group: EC_GROUP_ptr; nid: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EC_GROUP_set_generator(group: EC_GROUP_ptr; generator: EC_POINT_ptr; order: BIGNUM_ptr; cofactor: BIGNUM_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure EC_GROUP_set_point_conversion_form(group: EC_GROUP_ptr; form: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function EC_GROUP_set_seed(param: EC_GROUP_ptr; char: PCardinal; Len: NativeUInt): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function EC_GROUP_set_seed(param: EC_GROUP_ptr; char: PByte; Len: NativeUInt): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function EC_GROUP_to_params(group: EC_GROUP_ptr; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar; bnctx: BN_CTX_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { EC_KEY }
                                         procedure EC_KEY_METHOD_free(meth: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -5476,8 +5570,8 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         { OBJ }
                                         function OBJ_NAME_add(Name: PAnsiChar; Type_: Integer; data: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure OBJ_NAME_cleanup(Type_: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure OBJ_NAME_do_all(fn: Pointer; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure OBJ_NAME_do_all_sorted(fn: Pointer; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OBJ_NAME_do_all(Type_: Integer; fn: Pointer; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure OBJ_NAME_do_all_sorted(Type_: Integer; fn: Pointer; arg: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OBJ_NAME_get(Name: PAnsiChar; Type_: Integer): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OBJ_NAME_init: Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OBJ_NAME_remove(Name: PAnsiChar; Type_: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -5611,7 +5705,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
-                                        function OPENSSL_timegm(tm: Pointer; Out_: PNativeInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OPENSSL_timegm(tm: Pointer; Out_: C__TIME_T_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OPENSSL_tm_to_posix(tm: Pointer; Out_: PInt64): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 {$ENDIF}
 {$ENDIF}
@@ -5621,12 +5715,12 @@ function fclose(Stream: C_FILE_ptr): Integer;
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
                                         function OSSL_ECHSTORE_downselect(es: Pointer; index: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_ECHSTORE_flush_keys(es: Pointer; age: NativeInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_ECHSTORE_flush_keys(es: Pointer; age: C__TIME_T): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure OSSL_ECHSTORE_free(es: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_ECHSTORE_get1_info(es: Pointer; index: Integer; loaded_secs: PNativeInt; public_name: PPAnsiChar; echconfig: PPAnsiChar; has_private: PInteger;
+                                        function OSSL_ECHSTORE_get1_info(es: Pointer; index: Integer; loaded_secs: C__TIME_T_ptr; public_name: PPAnsiChar; echconfig: PPAnsiChar; has_private: PInteger;
                                         for_retry: PInteger): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_ECHSTORE_new(libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_ECHSTORE_new_config(es: Pointer; echversion: Pointer; max_name_length: Pointer; public_name: PAnsiChar; suite: Pointer): Integer;
+                                        function OSSL_ECHSTORE_new_config(es: Pointer; echversion: Word; max_name_length: Byte; public_name: PAnsiChar; suite: OSSL_HPKE_SUITE): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_ECHSTORE_num_entries(es: Pointer; numentries: PInteger): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_ECHSTORE_num_keys(es: Pointer; numkeys: PInteger): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -5813,7 +5907,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         procedure OSSL_CMP_log_close; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_CMP_log_open: Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure OSSL_CMP_print_errors_cb(log_fn: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_CMP_print_to_bio(BIO: BIO_ptr; component: PAnsiChar; File_: PAnsiChar; Line: Integer; level: Pointer; msg: PAnsiChar): Integer;
+                                        function OSSL_CMP_print_to_bio(BIO: BIO_ptr; component: PAnsiChar; File_: PAnsiChar; Line: Integer; level: Integer; msg: PAnsiChar): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_CMP_snprint_PKIStatusInfo(statusInfo: OSSL_CMP_PKISI_ptr; Buf: PAnsiChar; bufsize: NativeUInt): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_CMP_try_certreq(ctx: OSSL_CMP_CTX_ptr; req_type: Integer; crm: OSSL_CRMF_MSG_ptr; checkAfter: PInteger): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -5906,7 +6000,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function OSSL_DECODER_get_params(decoder: OSSL_DECODER_ptr; params: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_DECODER_gettable_params(decoder: OSSL_DECODER_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_DECODER_is_a(encoder: OSSL_DECODER_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure OSSL_DECODER_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_DECODER_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_DECODER_settable_ctx_params(encoder: OSSL_DECODER_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_DECODER_up_ref(encoder: OSSL_DECODER_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { OSSL_ENCODER }
@@ -5947,14 +6041,14 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function OSSL_ENCODER_get_params(encoder: OSSL_ENCODER_ptr; params: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_ENCODER_gettable_params(encoder: OSSL_ENCODER_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_ENCODER_is_a(encoder: OSSL_ENCODER_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure OSSL_ENCODER_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_ENCODER_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_ENCODER_settable_ctx_params(encoder: OSSL_ENCODER_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_ENCODER_to_fp(ctx: OSSL_ENCODER_CTX_ptr; fp: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_ENCODER_up_ref(encoder: OSSL_ENCODER_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { OSSL_HPKE }
                                         procedure OSSL_HPKE_CTX_free(ctx: OSSL_HPKE_CTX_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_HPKE_CTX_get_seq(ctx: OSSL_HPKE_CTX_ptr; seq: PUInt64): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_HPKE_CTX_new(Mode: Integer; suite: Pointer; role: Integer; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar): OSSL_HPKE_CTX_ptr; {$IFDEF __CDECL}cdecl;
+                                        function OSSL_HPKE_CTX_new(Mode: Integer; suite: OSSL_HPKE_SUITE; role: Integer; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar): OSSL_HPKE_CTX_ptr; {$IFDEF __CDECL}cdecl;
                                         {$ENDIF}
                                         function OSSL_HPKE_CTX_set1_authpriv(ctx: OSSL_HPKE_CTX_ptr; priv: EVP_PKEY_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_HPKE_CTX_set1_authpub(ctx: OSSL_HPKE_CTX_ptr; pub: PByte; publen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -5967,19 +6061,19 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_HPKE_export(ctx: OSSL_HPKE_CTX_ptr; secret: PByte; secretlen: NativeUInt; label_: PByte; labellen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;
                                         {$ENDIF}
-                                        function OSSL_HPKE_get_ciphertext_size(suite: Pointer; clearlen: NativeUInt): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_HPKE_get_grease_value(suite_in: Pointer; suite: Pointer; enc: PByte; enclen: PNativeUInt; ct: PByte; ctlen: NativeUInt; libctx: OSSL_LIB_CTX_ptr;
+                                        function OSSL_HPKE_get_ciphertext_size(suite: OSSL_HPKE_SUITE; clearlen: NativeUInt): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_HPKE_get_grease_value(suite_in: OSSL_HPKE_SUITE_ptr; suite: OSSL_HPKE_SUITE_ptr; enc: PByte; enclen: PNativeUInt; ct: PByte; ctlen: NativeUInt; libctx: OSSL_LIB_CTX_ptr;
                                         propq: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_HPKE_get_public_encap_size(suite: Pointer): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_HPKE_get_recommended_ikmelen(suite: Pointer): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_HPKE_keygen(suite: Pointer; pub: PByte; publen: PNativeUInt; priv: Pointer; ikm: PByte; ikmlen: NativeUInt; libctx: OSSL_LIB_CTX_ptr;
+                                        function OSSL_HPKE_get_public_encap_size(suite: OSSL_HPKE_SUITE): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_HPKE_get_recommended_ikmelen(suite: OSSL_HPKE_SUITE): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_HPKE_keygen(suite: OSSL_HPKE_SUITE; pub: PByte; publen: PNativeUInt; priv: Pointer; ikm: PByte; ikmlen: NativeUInt; libctx: OSSL_LIB_CTX_ptr;
                                         propq: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_HPKE_open(ctx: OSSL_HPKE_CTX_ptr; pt: PByte; ptlen: PNativeUInt; aad: PByte; aadlen: NativeUInt; ct: PByte; ctlen: NativeUInt): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_HPKE_seal(ctx: OSSL_HPKE_CTX_ptr; ct: PByte; ctlen: PNativeUInt; aad: PByte; aadlen: NativeUInt; pt: PByte; ptlen: NativeUInt): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_HPKE_str2suite(Str: PAnsiChar; suite: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_HPKE_suite_check(suite: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_HPKE_str2suite(Str: PAnsiChar; suite: OSSL_HPKE_SUITE_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_HPKE_suite_check(suite: OSSL_HPKE_SUITE): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { OSSL_HTTP }
                                         function OSSL_HTTP_REQ_CTX_add1_header(rctx: OSSL_HTTP_REQ_CTX_ptr; Name: PAnsiChar; value: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_HTTP_REQ_CTX_exchange(rctx: OSSL_HTTP_REQ_CTX_ptr): BIO_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -6052,22 +6146,22 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function OSSL_PARAM_BLD_push_BN_pad(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; bn: BIGNUM_ptr; sz: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_double(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Double): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_int(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_PARAM_BLD_push_int32(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_PARAM_BLD_push_int32(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_int64(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Int64): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_PARAM_BLD_push_long(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_PARAM_BLD_push_long(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_octet_ptr(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Buf: Pointer; bsize: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_octet_string(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Buf: Pointer; bsize: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_size_t(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_PARAM_BLD_push_time_t(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: NativeInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_PARAM_BLD_push_time_t(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: C__TIME_T): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_uint(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_uint32(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_uint64(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: UInt64): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function OSSL_PARAM_BLD_push_ulong(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_PARAM_BLD_push_ulong(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Val: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_utf8_ptr(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Buf: PAnsiChar; bsize: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_push_utf8_string(bld: OSSL_PARAM_BLD_ptr; key: PAnsiChar; Buf: PAnsiChar; bsize: NativeUInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PARAM_BLD_to_param(bld: OSSL_PARAM_BLD_ptr): OSSL_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { OSSL_PROVIDER }
-                                        function OSSL_PROVIDER_add_builtin(param: OSSL_LIB_CTX_ptr; Name: PAnsiChar; init_fn: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_PROVIDER_add_builtin(param: OSSL_LIB_CTX_ptr; Name: PAnsiChar; init_fn: OSSL_provider_init_fn): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PROVIDER_add_conf_parameter(prov: OSSL_PROVIDER_ptr; Name: PAnsiChar; value: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PROVIDER_conf_get_bool(prov: OSSL_PROVIDER_ptr; Name: PAnsiChar; defval: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_PROVIDER_get0_default_search_path(libctx: OSSL_LIB_CTX_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -6136,7 +6230,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function OSSL_STORE_LOADER_get0_provider(loader: OSSL_STORE_LOADER_ptr): OSSL_PROVIDER_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_STORE_LOADER_get0_scheme(loader: OSSL_STORE_LOADER_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_STORE_LOADER_is_a(loader: OSSL_STORE_LOADER_ptr; scheme: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure OSSL_STORE_LOADER_names_do_all(Obj: Pointer; fn: Pointer; data: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function OSSL_STORE_LOADER_names_do_all(Obj: Pointer; fn: OSSL_NAME_CALLBACK; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_STORE_LOADER_new(e: ENGINE_ptr; scheme: PAnsiChar): OSSL_STORE_LOADER_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_STORE_LOADER_set_attach(loader: OSSL_STORE_LOADER_ptr; attach_function: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function OSSL_STORE_LOADER_set_close(loader: OSSL_STORE_LOADER_ptr; close_function: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -6837,7 +6931,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function SSL_dane_clear_flags(SSL: SSL_ptr; Flags: Cardinal): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_dane_enable(s: SSL_ptr; basedomain: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_dane_set_flags(SSL: SSL_ptr; Flags: Cardinal): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_dane_tlsa_add(s: SSL_ptr; usage: Pointer; selector: Pointer; mtype: Pointer; data: PByte; dlen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;
+                                        function SSL_dane_tlsa_add(s: SSL_ptr; usage: Byte; selector: Byte; mtype: Byte; data: PByte; dlen: NativeUInt): Integer; {$IFDEF __CDECL}cdecl;
                                         {$ENDIF}
                                         function SSL_dup(SSL: SSL_ptr): SSL_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
 {$IFDEF OPENSSL_4X}
@@ -6850,7 +6944,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function SSL_ech_set1_outer_server_name(s: SSL_ptr; outer_name: PAnsiChar; no_outer: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_ech_set1_server_names(s: SSL_ptr; inner_name: PAnsiChar; outer_name: PAnsiChar; no_outer: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure SSL_ech_set_callback(s: SSL_ptr; f: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_ech_set_grease_type(s: SSL_ptr; Type_: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_ech_set_grease_type(s: SSL_ptr; Type_: Word): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
 {$ENDIF}
 {$ENDIF}
 {$ENDIF}
@@ -6978,7 +7072,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function SSL_get_srp_userinfo(s: SSL_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_get_srp_username(s: SSL_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_get_ssl_method(s: SSL_ptr): SSL_METHOD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_get_state(SSL: SSL_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_get_state(SSL: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_get_stream_id(s: SSL_ptr): UInt64; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_get_stream_read_error_code(SSL: SSL_ptr; app_error_code: PUInt64): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_get_stream_read_state(SSL: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7033,7 +7127,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function SSL_rstate_string_long(s: SSL_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_select_next_proto(Out_: PPByte; outlen: PByte; server: PByte; server_len: Cardinal; client: PByte; client_len: Cardinal): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_sendfile(s: SSL_ptr; FD: Integer; offset: Pointer; Size: NativeUInt; Flags: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_sendfile(s: SSL_ptr; FD: Integer; offset: Integer; Size: NativeUInt; Flags: Integer): NativeInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_session_reused(s: SSL_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure SSL_set0_rbio(s: SSL_ptr; rbio: BIO_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure SSL_set0_security_ex_data(s: SSL_ptr; ex: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7124,7 +7218,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         {$ENDIF}
                                         function SSL_set_srp_server_param_pw(s: SSL_ptr; user: PAnsiChar; pass: PAnsiChar; grp: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_set_ssl_method(s: SSL_ptr; method: SSL_METHOD_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_set_tlsext_max_fragment_length(SSL: SSL_ptr; Mode: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_set_tlsext_max_fragment_length(SSL: SSL_ptr; Mode: Byte): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_set_tlsext_use_srtp(SSL: SSL_ptr; profiles: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_set_trust(SSL: SSL_ptr; trust: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_set_value_uint(s: SSL_ptr; class_: Cardinal; id: Cardinal; v: UInt64): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7165,7 +7259,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function SSL_CIPHER_get_handshake_digest(c: SSL_CIPHER_ptr): EVP_MD_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CIPHER_get_id(c: SSL_CIPHER_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CIPHER_get_kx_nid(c: SSL_CIPHER_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_CIPHER_get_protocol_id(c: SSL_CIPHER_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_CIPHER_get_protocol_id(c: SSL_CIPHER_ptr): Word; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CIPHER_is_aead(c: SSL_CIPHER_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CIPHER_standard_name(c: SSL_CIPHER_ptr): PAnsiChar; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { SSL_CONF }
@@ -7197,7 +7291,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function SSL_CTX_ct_is_enabled(ctx: SSL_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CTX_dane_clear_flags(ctx: SSL_CTX_ptr; Flags: Cardinal): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CTX_dane_enable(ctx: SSL_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_CTX_dane_mtype_set(ctx: SSL_CTX_ptr; md: EVP_MD_ptr; mtype: Pointer; ord: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_CTX_dane_mtype_set(ctx: SSL_CTX_ptr; md: EVP_MD_ptr; mtype: Byte; ord: Byte): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CTX_dane_set_flags(ctx: SSL_CTX_ptr; Flags: Cardinal): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -7209,7 +7303,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
 {$ENDIF}
                                         function SSL_CTX_enable_ct(ctx: SSL_CTX_ptr; validation_mode: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure SSL_CTX_flush_sessions(ctx: SSL_CTX_ptr; tm: Integer); {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure SSL_CTX_flush_sessions_ex(ctx: SSL_CTX_ptr; tm: NativeInt); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure SSL_CTX_flush_sessions_ex(ctx: SSL_CTX_ptr; tm: C__TIME_T); {$IFDEF __CDECL}cdecl; {$ENDIF}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
 {$IFDEF OPENSSL_4X}
@@ -7330,7 +7424,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function SSL_CTX_set_srp_username(ctx: SSL_CTX_ptr; Name: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CTX_set_ssl_version(ctx: SSL_CTX_ptr; meth: SSL_METHOD_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CTX_set_timeout(ctx: SSL_CTX_ptr; t: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_CTX_set_tlsext_max_fragment_length(ctx: SSL_CTX_ptr; Mode: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_CTX_set_tlsext_max_fragment_length(ctx: SSL_CTX_ptr; Mode: Byte): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CTX_set_tlsext_use_srtp(ctx: SSL_CTX_ptr; profiles: PAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CTX_set_trust(ctx: SSL_CTX_ptr; trust: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_CTX_use_PrivateKey_ASN1(pk: Integer; ctx: SSL_CTX_ptr; d: PByte; Len: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7357,11 +7451,11 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function SSL_SESSION_get_id(s: SSL_SESSION_ptr; Len: PCardinal): PByte; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_get_master_key(sess: SSL_SESSION_ptr; Out_: PByte; outlen: NativeUInt): NativeUInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_get_max_early_data(s: SSL_SESSION_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_SESSION_get_max_fragment_length(sess: SSL_SESSION_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_SESSION_get_max_fragment_length(sess: SSL_SESSION_ptr): Byte; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_get_protocol_version(s: SSL_SESSION_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_get_ticket_lifetime_hint(s: SSL_SESSION_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_get_time(s: SSL_SESSION_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_SESSION_get_time_ex(s: SSL_SESSION_ptr): NativeInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_SESSION_get_time_ex(s: SSL_SESSION_ptr): C__TIME_T; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_get_timeout(s: SSL_SESSION_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_has_ticket(s: SSL_SESSION_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_is_resumable(s: SSL_SESSION_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7380,7 +7474,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function SSL_SESSION_set_max_early_data(s: SSL_SESSION_ptr; max_early_data: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_set_protocol_version(s: SSL_SESSION_ptr; version: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_set_time(s: SSL_SESSION_ptr; t: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function SSL_SESSION_set_time_ex(s: SSL_SESSION_ptr; t: NativeInt): NativeInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function SSL_SESSION_set_time_ex(s: SSL_SESSION_ptr; t: C__TIME_T): C__TIME_T; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_set_timeout(s: SSL_SESSION_ptr; t: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function SSL_SESSION_up_ref(ses: SSL_SESSION_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { SXNET }
@@ -7565,7 +7659,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function UI_get_result_maxsize(uis: UI_STRING_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function UI_get_result_minsize(uis: UI_STRING_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function UI_get_result_string_length(uis: UI_STRING_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function UI_get_string_type(uis: UI_STRING_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function UI_get_string_type(uis: UI_STRING_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function UI_method_get_ex_data(method: UI_METHOD_ptr; Idx: Integer): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function UI_method_set_ex_data(method: UI_METHOD_ptr; Idx: Integer; data: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function UI_new: UI_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7627,7 +7721,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         procedure X509_OBJECT_free(a: X509_OBJECT_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_OBJECT_get0_X509(a: X509_OBJECT_ptr): X509_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_OBJECT_get0_X509_CRL(a: X509_OBJECT_ptr): X509_CRL_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_OBJECT_get_type(a: X509_OBJECT_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function X509_OBJECT_get_type(a: X509_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_OBJECT_new: X509_OBJECT_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_OBJECT_set1_X509(a: X509_OBJECT_ptr; Obj: X509_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_OBJECT_set1_X509_CRL(a: X509_OBJECT_ptr; Obj: X509_CRL_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7684,7 +7778,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function X509_check_trust(x: X509_ptr; id: Integer; Flags: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_cmp(a: X509_ptr; b: X509_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_cmp_current_time(s: ASN1_TIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_cmp_time(s: ASN1_TIME_ptr; t: PNativeInt): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function X509_cmp_time(s: ASN1_TIME_ptr; t: C__TIME_T_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_cmp_timeframe(vpm: X509_VERIFY_PARAM_ptr; start: ASN1_TIME_ptr; end_: ASN1_TIME_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_delete_ext(x: X509_ptr; loc: Integer): X509_EXTENSION_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_digest(data: X509_ptr; Type_: EVP_MD_ptr; md: PByte; Len: PCardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7761,8 +7855,8 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function X509_subject_name_hash(x: X509_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_subject_name_hash_old(x: X509_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_supported_extension(ex: X509_EXTENSION_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_time_adj(s: ASN1_TIME_ptr; adj: Integer; t: PNativeInt): ASN1_TIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_time_adj_ex(s: ASN1_TIME_ptr; offset_day: Integer; offset_sec: Integer; t: PNativeInt): ASN1_TIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function X509_time_adj(s: ASN1_TIME_ptr; adj: Integer; t: C__TIME_T_ptr): ASN1_TIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function X509_time_adj_ex(s: ASN1_TIME_ptr; offset_day: Integer; offset_sec: Integer; t: C__TIME_T_ptr): ASN1_TIME_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_to_X509_REQ(x: X509_ptr; pkey: EVP_PKEY_ptr; md: EVP_MD_ptr): X509_REQ_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure X509_trust_clear(x: X509_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_trusted(x: X509_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7794,9 +7888,11 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         { X509_ALGOR }
                                         function X509_ALGOR_cmp(a: X509_ALGOR_ptr; b: X509_ALGOR_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_ALGOR_copy(dest: X509_ALGOR_ptr; src: X509_ALGOR_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function X509_ALGOR_new: X509_ALGOR_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure X509_ALGOR_free(algorithm: X509_ALGOR_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure X509_ALGOR_get0(paobj: Pointer; pptype: PInteger; ppval: Pointer; algor: X509_ALGOR_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_ALGOR_set0(alg: X509_ALGOR_ptr; aobj: ASN1_OBJECT_ptr; ptype: Integer; pval: Pointer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_ALGOR_set_md(alg: X509_ALGOR_ptr; md: EVP_MD_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        {$IFDEF OPENSSL_4X}function{$ELSE}procedure{$ENDIF} X509_ALGOR_set_md(alg: X509_ALGOR_ptr; md: EVP_MD_ptr){$IFDEF OPENSSL_4X}: Integer{$ENDIF}; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { X509_ATTRIBUTE }
                                         function X509_ATTRIBUTE_count(attr: X509_ATTRIBUTE_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_ATTRIBUTE_create(nid: Integer; atrtype: Integer; value: Pointer): X509_ATTRIBUTE_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -7864,14 +7960,14 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function X509_EXTENSION_set_data(ex: X509_EXTENSION_ptr; data: ASN1_OCTET_STRING_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_EXTENSION_set_object(ex: X509_EXTENSION_ptr; Obj: ASN1_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { X509_LOOKUP }
-                                        function X509_LOOKUP_by_alias(ctx: X509_LOOKUP_ptr; Type_: Pointer; Str: PAnsiChar; Len: Integer; Ret: X509_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl;
+                                        function X509_LOOKUP_by_alias(ctx: X509_LOOKUP_ptr; Type_: Integer; Str: PAnsiChar; Len: Integer; Ret: X509_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl;
                                         {$ENDIF}
-                                        function X509_LOOKUP_by_fingerprint(ctx: X509_LOOKUP_ptr; Type_: Pointer; bytes: PByte; Len: Integer; Ret: X509_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl;
+                                        function X509_LOOKUP_by_fingerprint(ctx: X509_LOOKUP_ptr; Type_: Integer; bytes: PByte; Len: Integer; Ret: X509_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl;
                                         {$ENDIF}
-                                        function X509_LOOKUP_by_issuer_serial(ctx: X509_LOOKUP_ptr; Type_: Pointer; Name: X509_NAME_ptr; serial: ASN1_INTEGER_ptr; Ret: X509_OBJECT_ptr): Integer;
+                                        function X509_LOOKUP_by_issuer_serial(ctx: X509_LOOKUP_ptr; Type_: Integer; Name: X509_NAME_ptr; serial: ASN1_INTEGER_ptr; Ret: X509_OBJECT_ptr): Integer;
                                         {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_LOOKUP_by_subject(ctx: X509_LOOKUP_ptr; Type_: Pointer; Name: X509_NAME_ptr; Ret: X509_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_LOOKUP_by_subject_ex(ctx: X509_LOOKUP_ptr; Type_: Pointer; Name: X509_NAME_ptr; Ret: X509_OBJECT_ptr; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar)
+                                        function X509_LOOKUP_by_subject(ctx: X509_LOOKUP_ptr; Type_: Integer; Name: X509_NAME_ptr; Ret: X509_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function X509_LOOKUP_by_subject_ex(ctx: X509_LOOKUP_ptr; Type_: Integer; Name: X509_NAME_ptr; Ret: X509_OBJECT_ptr; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar)
                                         : Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_LOOKUP_ctrl(ctx: X509_LOOKUP_ptr; Cmd: Integer; argc: PAnsiChar; argl: Integer; Ret: PPAnsiChar): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_LOOKUP_ctrl_ex(ctx: X509_LOOKUP_ptr; Cmd: Integer; argc: PAnsiChar; argl: Integer; Ret: PPAnsiChar; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar)
@@ -8037,7 +8133,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function X509_STORE_CTX_get0_rpk(ctx: X509_STORE_CTX_ptr): EVP_PKEY_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_get0_store(ctx: X509_STORE_CTX_ptr): X509_STORE_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_get1_issuer(issuer: Pointer; ctx: X509_STORE_CTX_ptr; x: X509_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_STORE_CTX_get_by_subject(vs: X509_STORE_CTX_ptr; Type_: Pointer; Name: X509_NAME_ptr; Ret: X509_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl;
+                                        function X509_STORE_CTX_get_by_subject(vs: X509_STORE_CTX_ptr; Type_: Integer; Name: X509_NAME_ptr; Ret: X509_OBJECT_ptr): Integer; {$IFDEF __CDECL}cdecl;
                                         {$ENDIF}
                                         function X509_STORE_CTX_get_cert_crl(ctx: X509_STORE_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_get_check_crl(ctx: X509_STORE_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -8052,7 +8148,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function X509_STORE_CTX_get_lookup_certs(ctx: X509_STORE_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_get_lookup_crls(ctx: X509_STORE_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_get_num_untrusted(ctx: X509_STORE_CTX_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_STORE_CTX_get_obj_by_subject(vs: X509_STORE_CTX_ptr; Type_: Pointer; Name: X509_NAME_ptr): X509_OBJECT_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function X509_STORE_CTX_get_obj_by_subject(vs: X509_STORE_CTX_ptr; Type_: Integer; Name: X509_NAME_ptr): X509_OBJECT_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_get_verify(ctx: X509_STORE_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_get_verify_cb(ctx: X509_STORE_CTX_ptr): Pointer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_init_rpk(ctx: X509_STORE_CTX_ptr; trust_store: X509_STORE_ptr; rpk: EVP_PKEY_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -8074,7 +8170,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         procedure X509_STORE_CTX_set_flags(ctx: X509_STORE_CTX_ptr; Flags: Cardinal); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure X509_STORE_CTX_set_get_crl(ctx: X509_STORE_CTX_ptr; get_crl: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_set_purpose(ctx: X509_STORE_CTX_ptr; purpose: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure X509_STORE_CTX_set_time(ctx: X509_STORE_CTX_ptr; Flags: Cardinal; t: NativeInt); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure X509_STORE_CTX_set_time(ctx: X509_STORE_CTX_ptr; Flags: Cardinal; t: C__TIME_T); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_STORE_CTX_set_trust(ctx: X509_STORE_CTX_ptr; trust: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure X509_STORE_CTX_set_verify(ctx: X509_STORE_CTX_ptr; verify: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure X509_STORE_CTX_set_verify_cb(ctx: X509_STORE_CTX_ptr; verify: Pointer); {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -8108,7 +8204,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         function X509_VERIFY_PARAM_get_hostflags(param: X509_VERIFY_PARAM_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_VERIFY_PARAM_get_inh_flags(param: X509_VERIFY_PARAM_ptr): Cardinal; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_VERIFY_PARAM_get_purpose(param: X509_VERIFY_PARAM_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        function X509_VERIFY_PARAM_get_time(param: X509_VERIFY_PARAM_ptr): NativeInt; {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        function X509_VERIFY_PARAM_get_time(param: X509_VERIFY_PARAM_ptr): C__TIME_T; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_VERIFY_PARAM_inherit(to_: X509_VERIFY_PARAM_ptr; From: X509_VERIFY_PARAM_ptr): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_VERIFY_PARAM_lookup(Name: PAnsiChar): X509_VERIFY_PARAM_ptr; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure X509_VERIFY_PARAM_move_peername(param: X509_VERIFY_PARAM_ptr; param_: X509_VERIFY_PARAM_ptr); {$IFDEF __CDECL}cdecl; {$ENDIF}
@@ -8133,7 +8229,7 @@ function fclose(Stream: C_FILE_ptr): Integer;
                                         procedure X509_VERIFY_PARAM_set_hostflags(param: X509_VERIFY_PARAM_ptr; Flags: Cardinal); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_VERIFY_PARAM_set_inh_flags(param: X509_VERIFY_PARAM_ptr; Flags: Cardinal): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_VERIFY_PARAM_set_purpose(param: X509_VERIFY_PARAM_ptr; purpose: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
-                                        procedure X509_VERIFY_PARAM_set_time(param: X509_VERIFY_PARAM_ptr; t: NativeInt); {$IFDEF __CDECL}cdecl; {$ENDIF}
+                                        procedure X509_VERIFY_PARAM_set_time(param: X509_VERIFY_PARAM_ptr; t: C__TIME_T); {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         function X509_VERIFY_PARAM_set_trust(param: X509_VERIFY_PARAM_ptr; trust: Integer): Integer; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         procedure X509_VERIFY_PARAM_table_cleanup; {$IFDEF __CDECL}cdecl; {$ENDIF}
                                         { i2d/d2i serialization }
@@ -9185,11 +9281,11 @@ function EVP_PKEY_verify_recover; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE
 // ============================================================================
 // EVP Base64 external bindings
 // ============================================================================
-function EVP_EncodeInit; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_EncodeInit'; {$ENDIF}
+procedure EVP_EncodeInit; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_EncodeInit'; {$ENDIF}
 function EVP_EncodeUpdate; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_EncodeUpdate'; {$ENDIF}
 procedure EVP_EncodeFinal; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_EncodeFinal'; {$ENDIF}
 function EVP_EncodeBlock; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_EncodeBlock'; {$ENDIF}
-function EVP_DecodeInit; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_DecodeInit'; {$ENDIF}
+procedure EVP_DecodeInit; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_DecodeInit'; {$ENDIF}
 function EVP_DecodeUpdate; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_DecodeUpdate'; {$ENDIF}
 function EVP_DecodeFinal; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_DecodeFinal'; {$ENDIF}
 function EVP_DecodeBlock; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_DecodeBlock'; {$ENDIF}
@@ -9499,8 +9595,8 @@ function ECDSA_size; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external nam
 // ============================================================================
 function RAND_bytes; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'RAND_bytes'; {$ENDIF}
 function RAND_priv_bytes; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'RAND_priv_bytes'; {$ENDIF}
-function RAND_seed; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'RAND_seed'; {$ENDIF}
-function RAND_add; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'RAND_add'; {$ENDIF}
+procedure RAND_seed; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'RAND_seed'; {$ENDIF}
+procedure RAND_add; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'RAND_add'; {$ENDIF}
 function RAND_status; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'RAND_status'; {$ENDIF}
 // ============================================================================
 // HMAC external bindings
@@ -10783,7 +10879,7 @@ procedure ASN1_TYPE_free; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}externa
 function ASN1_TYPE_get; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ASN1_TYPE_get'; {$ENDIF}
 function ASN1_TYPE_get_int_octetstring; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ASN1_TYPE_get_int_octetstring'; {$ENDIF}
 function ASN1_TYPE_get_octetstring; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ASN1_TYPE_get_octetstring'; {$ENDIF}
-procedure ASN1_TYPE_new; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ASN1_TYPE_new'; {$ENDIF}
+function ASN1_TYPE_new; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ASN1_TYPE_new'; {$ENDIF}
 function ASN1_TYPE_pack_sequence; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ASN1_TYPE_pack_sequence'; {$ENDIF}
 procedure ASN1_TYPE_set; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ASN1_TYPE_set'; {$ENDIF}
 function ASN1_TYPE_set1; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'ASN1_TYPE_set1'; {$ENDIF}
@@ -10994,18 +11090,18 @@ function BIO_listen; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external nam
 function BIO_lookup; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_lookup'; {$ENDIF}
 function BIO_lookup_ex; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_lookup_ex'; {$ENDIF}
 procedure BIO_meth_free; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_free'; {$ENDIF}
-procedure BIO_meth_get_callback_ctrl; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_callback_ctrl'; {$ENDIF}
-procedure BIO_meth_get_create; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_create'; {$ENDIF}
-procedure BIO_meth_get_ctrl; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_ctrl'; {$ENDIF}
-procedure BIO_meth_get_destroy; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_destroy'; {$ENDIF}
-procedure BIO_meth_get_gets; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_gets'; {$ENDIF}
-procedure BIO_meth_get_puts; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_puts'; {$ENDIF}
-procedure BIO_meth_get_read; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_read'; {$ENDIF}
-procedure BIO_meth_get_read_ex; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_read_ex'; {$ENDIF}
+function BIO_meth_get_callback_ctrl; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_callback_ctrl'; {$ENDIF}
+function BIO_meth_get_create; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_create'; {$ENDIF}
+function BIO_meth_get_ctrl; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_ctrl'; {$ENDIF}
+function BIO_meth_get_destroy; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_destroy'; {$ENDIF}
+function BIO_meth_get_gets; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_gets'; {$ENDIF}
+function BIO_meth_get_puts; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_puts'; {$ENDIF}
+function BIO_meth_get_read; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_read'; {$ENDIF}
+function BIO_meth_get_read_ex; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_read_ex'; {$ENDIF}
 procedure BIO_meth_get_recvmmsg; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_recvmmsg'; {$ENDIF}
 procedure BIO_meth_get_sendmmsg; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_sendmmsg'; {$ENDIF}
-procedure BIO_meth_get_write; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_write'; {$ENDIF}
-procedure BIO_meth_get_write_ex; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_write_ex'; {$ENDIF}
+function BIO_meth_get_write; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_write'; {$ENDIF}
+function BIO_meth_get_write_ex; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_get_write_ex'; {$ENDIF}
 function BIO_meth_new; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_new'; {$ENDIF}
 function BIO_meth_set_callback_ctrl; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_set_callback_ctrl'; {$ENDIF}
 function BIO_meth_set_create; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_meth_set_create'; {$ENDIF}
@@ -11046,7 +11142,7 @@ function BIO_sendmmsg; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external n
 procedure BIO_set_callback; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_set_callback'; {$ENDIF}
 procedure BIO_set_callback_arg; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_set_callback_arg'; {$ENDIF}
 procedure BIO_set_callback_ex; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_set_callback_ex'; {$ENDIF}
-procedure BIO_set_cipher; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_set_cipher'; {$ENDIF}
+function BIO_set_cipher; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_set_cipher'; {$ENDIF}
 procedure BIO_set_data; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_set_data'; {$ENDIF}
 procedure BIO_set_init; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_set_init'; {$ENDIF}
 procedure BIO_set_next; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'BIO_set_next'; {$ENDIF}
@@ -12069,7 +12165,7 @@ function EVP_ASYM_CIPHER_get0_name; {$IFDEF C_COMPILER_BORLAND_32}external; {$EL
 function EVP_ASYM_CIPHER_get0_provider; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_ASYM_CIPHER_get0_provider'; {$ENDIF}
 function EVP_ASYM_CIPHER_gettable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_ASYM_CIPHER_gettable_ctx_params'; {$ENDIF}
 function EVP_ASYM_CIPHER_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_ASYM_CIPHER_is_a'; {$ENDIF}
-procedure EVP_ASYM_CIPHER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_ASYM_CIPHER_names_do_all'; {$ENDIF}
+function EVP_ASYM_CIPHER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_ASYM_CIPHER_names_do_all'; {$ENDIF}
 function EVP_ASYM_CIPHER_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_ASYM_CIPHER_settable_ctx_params'; {$ENDIF}
 function EVP_ASYM_CIPHER_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_ASYM_CIPHER_up_ref'; {$ENDIF}
 function EVP_BytesToKey; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_BytesToKey'; {$ENDIF}
@@ -12117,7 +12213,7 @@ function EVP_CIPHER_gettable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external;
 function EVP_CIPHER_gettable_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_CIPHER_gettable_params'; {$ENDIF}
 function EVP_CIPHER_impl_ctx_size; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_CIPHER_impl_ctx_size'; {$ENDIF}
 function EVP_CIPHER_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_CIPHER_is_a'; {$ENDIF}
-procedure EVP_CIPHER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_CIPHER_names_do_all'; {$ENDIF}
+function EVP_CIPHER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_CIPHER_names_do_all'; {$ENDIF}
 function EVP_CIPHER_param_to_asn1; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_CIPHER_param_to_asn1'; {$ENDIF}
 function EVP_CIPHER_set_asn1_iv; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_CIPHER_set_asn1_iv'; {$ENDIF}
 function EVP_CIPHER_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_CIPHER_settable_ctx_params'; {$ENDIF}
@@ -12163,7 +12259,7 @@ function EVP_KDF_get_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}exte
 function EVP_KDF_gettable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KDF_gettable_ctx_params'; {$ENDIF}
 function EVP_KDF_gettable_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KDF_gettable_params'; {$ENDIF}
 function EVP_KDF_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KDF_is_a'; {$ENDIF}
-procedure EVP_KDF_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KDF_names_do_all'; {$ENDIF}
+function EVP_KDF_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KDF_names_do_all'; {$ENDIF}
 function EVP_KDF_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KDF_settable_ctx_params'; {$ENDIF}
 function EVP_KDF_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KDF_up_ref'; {$ENDIF}
 procedure EVP_KEM_do_all_provided; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEM_do_all_provided'; {$ENDIF}
@@ -12174,7 +12270,7 @@ function EVP_KEM_get0_name; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}exter
 function EVP_KEM_get0_provider; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEM_get0_provider'; {$ENDIF}
 function EVP_KEM_gettable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEM_gettable_ctx_params'; {$ENDIF}
 function EVP_KEM_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEM_is_a'; {$ENDIF}
-procedure EVP_KEM_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEM_names_do_all'; {$ENDIF}
+function EVP_KEM_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEM_names_do_all'; {$ENDIF}
 function EVP_KEM_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEM_settable_ctx_params'; {$ENDIF}
 function EVP_KEM_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEM_up_ref'; {$ENDIF}
 procedure EVP_KEYEXCH_do_all_provided; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYEXCH_do_all_provided'; {$ENDIF}
@@ -12185,7 +12281,7 @@ function EVP_KEYEXCH_get0_name; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}e
 function EVP_KEYEXCH_get0_provider; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYEXCH_get0_provider'; {$ENDIF}
 function EVP_KEYEXCH_gettable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYEXCH_gettable_ctx_params'; {$ENDIF}
 function EVP_KEYEXCH_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYEXCH_is_a'; {$ENDIF}
-procedure EVP_KEYEXCH_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYEXCH_names_do_all'; {$ENDIF}
+function EVP_KEYEXCH_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYEXCH_names_do_all'; {$ENDIF}
 function EVP_KEYEXCH_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYEXCH_settable_ctx_params'; {$ENDIF}
 function EVP_KEYEXCH_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYEXCH_up_ref'; {$ENDIF}
 procedure EVP_KEYMGMT_do_all_provided; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYMGMT_do_all_provided'; {$ENDIF}
@@ -12198,7 +12294,7 @@ function EVP_KEYMGMT_get0_name; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}e
 function EVP_KEYMGMT_get0_provider; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYMGMT_get0_provider'; {$ENDIF}
 function EVP_KEYMGMT_gettable_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYMGMT_gettable_params'; {$ENDIF}
 function EVP_KEYMGMT_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYMGMT_is_a'; {$ENDIF}
-procedure EVP_KEYMGMT_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYMGMT_names_do_all'; {$ENDIF}
+function EVP_KEYMGMT_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYMGMT_names_do_all'; {$ENDIF}
 function EVP_KEYMGMT_settable_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYMGMT_settable_params'; {$ENDIF}
 function EVP_KEYMGMT_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_KEYMGMT_up_ref'; {$ENDIF}
 function EVP_MAC_CTX_dup; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MAC_CTX_dup'; {$ENDIF}
@@ -12225,7 +12321,7 @@ function EVP_MAC_gettable_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE
 function EVP_MAC_init; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MAC_init'; {$ENDIF}
 function EVP_MAC_init_SKEY; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MAC_init_SKEY'; {$ENDIF}
 function EVP_MAC_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MAC_is_a'; {$ENDIF}
-procedure EVP_MAC_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MAC_names_do_all'; {$ENDIF}
+function EVP_MAC_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MAC_names_do_all'; {$ENDIF}
 function EVP_MAC_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MAC_settable_ctx_params'; {$ENDIF}
 function EVP_MAC_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MAC_up_ref'; {$ENDIF}
 function EVP_MAC_update; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MAC_update'; {$ENDIF}
@@ -12269,7 +12365,7 @@ function EVP_MD_get_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}exter
 function EVP_MD_gettable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MD_gettable_ctx_params'; {$ENDIF}
 function EVP_MD_gettable_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MD_gettable_params'; {$ENDIF}
 function EVP_MD_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MD_is_a'; {$ENDIF}
-procedure EVP_MD_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MD_names_do_all'; {$ENDIF}
+function EVP_MD_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MD_names_do_all'; {$ENDIF}
 function EVP_MD_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MD_settable_ctx_params'; {$ENDIF}
 function EVP_MD_xof; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_MD_xof'; {$ENDIF}
 function EVP_OpenFinal; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_OpenFinal'; {$ENDIF}
@@ -12505,7 +12601,7 @@ function EVP_PKEY_sign_message_init; {$IFDEF C_COMPILER_BORLAND_32}external; {$E
 function EVP_PKEY_sign_message_update; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_PKEY_sign_message_update'; {$ENDIF}
 function EVP_PKEY_todata; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_PKEY_todata'; {$ENDIF}
 function EVP_PKEY_type; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_PKEY_type'; {$ENDIF}
-procedure EVP_PKEY_type_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_PKEY_type_names_do_all'; {$ENDIF}
+function EVP_PKEY_type_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_PKEY_type_names_do_all'; {$ENDIF}
 function EVP_PKEY_verify_init_ex2; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_PKEY_verify_init_ex2'; {$ENDIF}
 function EVP_PKEY_verify_message_final; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_PKEY_verify_message_final'; {$ENDIF}
 function EVP_PKEY_verify_message_init; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_PKEY_verify_message_init'; {$ENDIF}
@@ -12537,7 +12633,7 @@ function EVP_RAND_gettable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {
 function EVP_RAND_gettable_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_RAND_gettable_params'; {$ENDIF}
 function EVP_RAND_instantiate; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_RAND_instantiate'; {$ENDIF}
 function EVP_RAND_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_RAND_is_a'; {$ENDIF}
-procedure EVP_RAND_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_RAND_names_do_all'; {$ENDIF}
+function EVP_RAND_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_RAND_names_do_all'; {$ENDIF}
 function EVP_RAND_nonce; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_RAND_nonce'; {$ENDIF}
 function EVP_RAND_reseed; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_RAND_reseed'; {$ENDIF}
 function EVP_RAND_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_RAND_settable_ctx_params'; {$ENDIF}
@@ -12559,7 +12655,7 @@ function EVP_SIGNATURE_has_message_update; {$IFDEF C_COMPILER_BORLAND_32}externa
 {$ENDIF}
 {$ENDIF}
 function EVP_SIGNATURE_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SIGNATURE_is_a'; {$ENDIF}
-procedure EVP_SIGNATURE_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SIGNATURE_names_do_all'; {$ENDIF}
+function EVP_SIGNATURE_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SIGNATURE_names_do_all'; {$ENDIF}
 function EVP_SIGNATURE_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SIGNATURE_settable_ctx_params'; {$ENDIF}
 function EVP_SIGNATURE_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SIGNATURE_up_ref'; {$ENDIF}
 procedure EVP_SKEYMGMT_do_all_provided; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SKEYMGMT_do_all_provided'; {$ENDIF}
@@ -12571,7 +12667,7 @@ function EVP_SKEYMGMT_get0_imp_settable_params; {$IFDEF C_COMPILER_BORLAND_32}ex
 function EVP_SKEYMGMT_get0_name; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SKEYMGMT_get0_name'; {$ENDIF}
 function EVP_SKEYMGMT_get0_provider; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SKEYMGMT_get0_provider'; {$ENDIF}
 function EVP_SKEYMGMT_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SKEYMGMT_is_a'; {$ENDIF}
-procedure EVP_SKEYMGMT_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SKEYMGMT_names_do_all'; {$ENDIF}
+function EVP_SKEYMGMT_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SKEYMGMT_names_do_all'; {$ENDIF}
 function EVP_SKEYMGMT_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SKEYMGMT_up_ref'; {$ENDIF}
 function EVP_SKEY_export; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SKEY_export'; {$ENDIF}
 procedure EVP_SKEY_free; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'EVP_SKEY_free'; {$ENDIF}
@@ -13044,7 +13140,7 @@ procedure OPENSSL_LH_doall; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}exter
 procedure OPENSSL_LH_doall_arg; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_LH_doall_arg'; {$ENDIF}
 procedure OPENSSL_LH_doall_arg_thunk; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_LH_doall_arg_thunk'; {$ENDIF}
 function OPENSSL_LH_error; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_LH_error'; {$ENDIF}
-function OPENSSL_LH_flush; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_LH_flush'; {$ENDIF}
+procedure OPENSSL_LH_flush; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_LH_flush'; {$ENDIF}
 procedure OPENSSL_LH_free; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_LH_free'; {$ENDIF}
 function OPENSSL_LH_get_down_load; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_LH_get_down_load'; {$ENDIF}
 function OPENSSL_LH_insert; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OPENSSL_LH_insert'; {$ENDIF}
@@ -13555,7 +13651,7 @@ function OSSL_DECODER_get0_provider; {$IFDEF C_COMPILER_BORLAND_32}external; {$E
 function OSSL_DECODER_get_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_DECODER_get_params'; {$ENDIF}
 function OSSL_DECODER_gettable_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_DECODER_gettable_params'; {$ENDIF}
 function OSSL_DECODER_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_DECODER_is_a'; {$ENDIF}
-procedure OSSL_DECODER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_DECODER_names_do_all'; {$ENDIF}
+function OSSL_DECODER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_DECODER_names_do_all'; {$ENDIF}
 function OSSL_DECODER_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_DECODER_settable_ctx_params'; {$ENDIF}
 function OSSL_DECODER_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_DECODER_up_ref'; {$ENDIF}
 {$IFDEF OPENSSL_4X}
@@ -13566,7 +13662,16 @@ function OSSL_ECHSTORE_flush_keys; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELS
 procedure OSSL_ECHSTORE_free; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ECHSTORE_free'; {$ENDIF}
 function OSSL_ECHSTORE_get1_info; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ECHSTORE_get1_info'; {$ENDIF}
 function OSSL_ECHSTORE_new; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ECHSTORE_new'; {$ENDIF}
+{$IFDEF C_COMPILER_BORLAND_32}
+procedure ossl_c_OSSL_ECHSTORE_new_config; external;
+function delphi_OSSL_ECHSTORE_new_config(es: Pointer; echversion: Word; max_name_length: Byte; public_name: PAnsiChar; suite: OSSL_HPKE_SUITE_ptr): Integer; external;
+function OSSL_ECHSTORE_new_config(es: Pointer; echversion: Word; max_name_length: Byte; public_name: PAnsiChar; suite: OSSL_HPKE_SUITE): Integer;
+begin
+  Result := delphi_OSSL_ECHSTORE_new_config(es, echversion, max_name_length, public_name, @suite);
+end;
+{$ELSE}
 function OSSL_ECHSTORE_new_config; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ECHSTORE_new_config'; {$ENDIF}
+{$ENDIF}
 function OSSL_ECHSTORE_num_entries; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ECHSTORE_num_entries'; {$ENDIF}
 function OSSL_ECHSTORE_num_keys; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ECHSTORE_num_keys'; {$ENDIF}
 function OSSL_ECHSTORE_read_echconfiglist; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ECHSTORE_read_echconfiglist'; {$ENDIF}
@@ -13614,7 +13719,7 @@ function OSSL_ENCODER_get0_provider; {$IFDEF C_COMPILER_BORLAND_32}external; {$E
 function OSSL_ENCODER_get_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ENCODER_get_params'; {$ENDIF}
 function OSSL_ENCODER_gettable_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ENCODER_gettable_params'; {$ENDIF}
 function OSSL_ENCODER_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ENCODER_is_a'; {$ENDIF}
-procedure OSSL_ENCODER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ENCODER_names_do_all'; {$ENDIF}
+function OSSL_ENCODER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ENCODER_names_do_all'; {$ENDIF}
 function OSSL_ENCODER_settable_ctx_params; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ENCODER_settable_ctx_params'; {$ENDIF}
 function OSSL_ENCODER_to_fp; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ENCODER_to_fp'; {$ENDIF}
 function OSSL_ENCODER_up_ref; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_ENCODER_up_ref'; {$ENDIF}
@@ -13639,7 +13744,16 @@ procedure OSSL_HASH_it; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external 
 procedure OSSL_HASH_new; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HASH_new'; {$ENDIF}
 procedure OSSL_HPKE_CTX_free; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_CTX_free'; {$ENDIF}
 function OSSL_HPKE_CTX_get_seq; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_CTX_get_seq'; {$ENDIF}
+{$IFDEF C_COMPILER_BORLAND_32}
+procedure ossl_c_OSSL_HPKE_CTX_new; external;
+function delphi_OSSL_HPKE_CTX_new(Mode: Integer; suite: OSSL_HPKE_SUITE_ptr; role: Integer; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar): OSSL_HPKE_CTX_ptr; external;
+function OSSL_HPKE_CTX_new(Mode: Integer; suite: OSSL_HPKE_SUITE; role: Integer; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar): OSSL_HPKE_CTX_ptr;
+begin
+  Result := delphi_OSSL_HPKE_CTX_new(Mode, @suite, role, libctx, propq);
+end;
+{$ELSE}
 function OSSL_HPKE_CTX_new; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_CTX_new'; {$ENDIF}
+{$ENDIF}
 function OSSL_HPKE_CTX_set1_authpriv; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_CTX_set1_authpriv'; {$ENDIF}
 function OSSL_HPKE_CTX_set1_authpub; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_CTX_set1_authpub'; {$ENDIF}
 function OSSL_HPKE_CTX_set1_ikme; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_CTX_set1_ikme'; {$ENDIF}
@@ -13648,14 +13762,59 @@ function OSSL_HPKE_CTX_set_seq; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}e
 function OSSL_HPKE_decap; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_decap'; {$ENDIF}
 function OSSL_HPKE_encap; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_encap'; {$ENDIF}
 function OSSL_HPKE_export; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_export'; {$ENDIF}
+{$IFDEF C_COMPILER_BORLAND_32}
+procedure ossl_c_OSSL_HPKE_get_ciphertext_size; external;
+function delphi_OSSL_HPKE_get_ciphertext_size(suite: OSSL_HPKE_SUITE_ptr; clearlen: NativeUInt): NativeUInt; external;
+function OSSL_HPKE_get_ciphertext_size(suite: OSSL_HPKE_SUITE; clearlen: NativeUInt): NativeUInt;
+begin
+  Result := delphi_OSSL_HPKE_get_ciphertext_size(@suite, clearlen);
+end;
+{$ELSE}
 function OSSL_HPKE_get_ciphertext_size; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_get_ciphertext_size'; {$ENDIF}
+{$ENDIF}
 function OSSL_HPKE_get_grease_value; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_get_grease_value'; {$ENDIF}
+{$IFDEF C_COMPILER_BORLAND_32}
+procedure ossl_c_OSSL_HPKE_get_public_encap_size; external;
+function delphi_OSSL_HPKE_get_public_encap_size(suite: OSSL_HPKE_SUITE_ptr): NativeUInt; external;
+function OSSL_HPKE_get_public_encap_size(suite: OSSL_HPKE_SUITE): NativeUInt;
+begin
+  Result := delphi_OSSL_HPKE_get_public_encap_size(@suite);
+end;
+{$ELSE}
 function OSSL_HPKE_get_public_encap_size; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_get_public_encap_size'; {$ENDIF}
+{$ENDIF}
+{$IFDEF C_COMPILER_BORLAND_32}
+procedure ossl_c_OSSL_HPKE_get_recommended_ikmelen; external;
+function delphi_OSSL_HPKE_get_recommended_ikmelen(suite: OSSL_HPKE_SUITE_ptr): NativeUInt; external;
+function OSSL_HPKE_get_recommended_ikmelen(suite: OSSL_HPKE_SUITE): NativeUInt;
+begin
+  Result := delphi_OSSL_HPKE_get_recommended_ikmelen(@suite);
+end;
+{$ELSE}
 function OSSL_HPKE_get_recommended_ikmelen; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_get_recommended_ikmelen'; {$ENDIF}
+{$ENDIF}
+{$IFDEF C_COMPILER_BORLAND_32}
+procedure ossl_c_OSSL_HPKE_keygen; external;
+function delphi_OSSL_HPKE_keygen(suite: OSSL_HPKE_SUITE_ptr; pub: PByte; publen: PNativeUInt; priv: Pointer; ikm: PByte; ikmlen: NativeUInt; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar): Integer; external;
+function OSSL_HPKE_keygen(suite: OSSL_HPKE_SUITE; pub: PByte; publen: PNativeUInt; priv: Pointer; ikm: PByte; ikmlen: NativeUInt; libctx: OSSL_LIB_CTX_ptr; propq: PAnsiChar): Integer;
+begin
+  Result := delphi_OSSL_HPKE_keygen(@suite, pub, publen, priv, ikm, ikmlen, libctx, propq);
+end;
+{$ELSE}
 function OSSL_HPKE_keygen; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_keygen'; {$ENDIF}
+{$ENDIF}
 function OSSL_HPKE_open; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_open'; {$ENDIF}
 function OSSL_HPKE_seal; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_seal'; {$ENDIF}
+{$IFDEF C_COMPILER_BORLAND_32}
+procedure ossl_c_OSSL_HPKE_suite_check; external;
+function delphi_OSSL_HPKE_suite_check(suite: OSSL_HPKE_SUITE_ptr): Integer; external;
+function OSSL_HPKE_suite_check(suite: OSSL_HPKE_SUITE): Integer;
+begin
+  Result := delphi_OSSL_HPKE_suite_check(@suite);
+end;
+{$ELSE}
 function OSSL_HPKE_suite_check; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HPKE_suite_check'; {$ENDIF}
+{$ENDIF}
 function OSSL_HTTP_REQ_CTX_add1_header; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HTTP_REQ_CTX_add1_header'; {$ENDIF}
 function OSSL_HTTP_REQ_CTX_exchange; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HTTP_REQ_CTX_exchange'; {$ENDIF}
 procedure OSSL_HTTP_REQ_CTX_free; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_HTTP_REQ_CTX_free'; {$ENDIF}
@@ -13861,7 +14020,7 @@ function OSSL_STORE_LOADER_get0_properties; {$IFDEF C_COMPILER_BORLAND_32}extern
 function OSSL_STORE_LOADER_get0_provider; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_STORE_LOADER_get0_provider'; {$ENDIF}
 function OSSL_STORE_LOADER_get0_scheme; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_STORE_LOADER_get0_scheme'; {$ENDIF}
 function OSSL_STORE_LOADER_is_a; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_STORE_LOADER_is_a'; {$ENDIF}
-procedure OSSL_STORE_LOADER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_STORE_LOADER_names_do_all'; {$ENDIF}
+function OSSL_STORE_LOADER_names_do_all; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_STORE_LOADER_names_do_all'; {$ENDIF}
 function OSSL_STORE_LOADER_new; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_STORE_LOADER_new'; {$ENDIF}
 function OSSL_STORE_LOADER_set_attach; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_STORE_LOADER_set_attach'; {$ENDIF}
 function OSSL_STORE_LOADER_set_close; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'OSSL_STORE_LOADER_set_close'; {$ENDIF}
@@ -15669,9 +15828,9 @@ procedure X509_ALGOR_dup; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}externa
 procedure X509_ALGOR_free; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ALGOR_free'; {$ENDIF}
 procedure X509_ALGOR_get0; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ALGOR_get0'; {$ENDIF}
 procedure X509_ALGOR_it; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ALGOR_it'; {$ENDIF}
-procedure X509_ALGOR_new; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ALGOR_new'; {$ENDIF}
+function X509_ALGOR_new; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ALGOR_new'; {$ENDIF}
 function X509_ALGOR_set0; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ALGOR_set0'; {$ENDIF}
-function X509_ALGOR_set_md; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ALGOR_set_md'; {$ENDIF}
+{$IFDEF OPENSSL_4X}function{$ELSE}procedure{$ENDIF} X509_ALGOR_set_md; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ALGOR_set_md'; {$ENDIF}
 function X509_ATTRIBUTE_count; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ATTRIBUTE_count'; {$ENDIF}
 function X509_ATTRIBUTE_create; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ATTRIBUTE_create'; {$ENDIF}
 function X509_ATTRIBUTE_create_by_NID; {$IFDEF C_COMPILER_BORLAND_32}external; {$ELSE}external name EXTERNAL_NAME_PREFIX + 'X509_ATTRIBUTE_create_by_NID'; {$ENDIF}
@@ -21798,10 +21957,6 @@ begin
   result := 0;
 end;
 
-procedure va_copy(dest, src: Pointer); register;
-begin
-  PPointer(dest)^ := PPointer(src)^;
-end;
 
 
 // --- CMAC external declarations (link to real C code in OBJ) ---

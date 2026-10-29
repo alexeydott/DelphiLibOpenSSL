@@ -310,6 +310,9 @@ def patch_mixed_declarations():
     # --- crypto/bio/bio_print.c ---
     # Move char buf[512] and char *abuf into the #if guard, remove from #else
     apply_text('crypto/bio/bio_print.c', [
+        # Classic BCC32 has a pointer va_list but no va_copy macro. An
+        # implicit function call cannot assign the caller's local va_list.
+        ('va_copy(cp_args, args);', 'cp_args = args; /* BCC32 pointer va_list copy */'),
         (
             '#if !defined(_MSC_VER) || _MSC_VER >= 1900\n    int sz;\n#endif',
             '#if !defined(_MSC_VER) || _MSC_VER >= 1900\n'
@@ -1232,6 +1235,11 @@ def cmd_apply():
         run_all_patches()
     elif cached:
         print("All files served from cache — no patching needed.")
+
+    # Apply this repair even when an older C89 cache supplied bio_print.c.
+    apply_text('crypto/bio/bio_print.c', [
+        ('va_copy(cp_args, args);', 'cp_args = args; /* BCC32 pointer va_list copy */'),
+    ])
 
 
 def cmd_restore():

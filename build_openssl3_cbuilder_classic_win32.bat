@@ -207,6 +207,10 @@ for /R "%OPENSSL_SRC%" %%f in (*.obj) do (
 
 echo   Collected !OBJ_COUNT! object files.
 
+REM Adapt Delphi register value records to the classic BCC32 C ABI.
+python "%~dp0helpers\build_hpke_bcc32_bridge.py" --branch %OPENSSL_BRANCH% --compiler "%BDS%\bin\bcc32.exe" --objects "%OBJ_OUT%"
+if errorlevel 1 exit /b 1
+
 REM === Generate Delphi .inc file ===
 echo [9/9] Generating %OBJ_DIR%_L_win32_bcc.inc...
 

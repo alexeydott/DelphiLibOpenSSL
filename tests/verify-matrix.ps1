@@ -30,13 +30,15 @@ foreach ($branch in $Branches) {
     }
     $out = Join-Path $outRoot $label
     New-Item -ItemType Directory $out -Force | Out-Null
+    & python "$root\helpers\build_record_layout_probe.py" --branch $branch --compiler $name --output $out
+    if ($LASTEXITCODE -ne 0) { throw "C record layout probe failed: $label" }
     $bat = Join-Path $out 'compile.bat'
     @"
 @echo off
 call "$root\build_config.bat" bcc32_classic >nul 2>&1
 if errorlevel 1 exit /b 1
 cd /d "$PSScriptRoot"
-$compiler -B -GD -DOPENSSL_${branch}X;$define;CI$extraDefines OpenSSL3Tests.dpr -U"$root$extraUnits" -N0"$out" -E"$out" > "$out\build.log" 2>&1
+$compiler -B -GD -DOPENSSL_${branch}X;$define;CI;ABI_LAYOUT_PROBE$extraDefines OpenSSL3Tests.dpr -U"$root$extraUnits" -O"$out" -N0"$out" -E"$out" > "$out\build.log" 2>&1
 exit /b %errorlevel%
 "@ | Set-Content $bat -Encoding ascii
     & cmd /c $bat
@@ -84,7 +86,7 @@ exit /b %errorlevel%
       $runText = Get-Content -LiteralPath "$out\run.log" -Raw
       $discovered = [regex]::Match($runText, '=== OpenSSL3 Tests: (\d+) active of (\d+) total ===')
       $results = [regex]::Match($runText, '=== Results: (\d+) passed, 0 failed, 0 errors, 0 ignored ===')
-      $minimumTests = if ($branch -eq 4) { 113 } else { 111 }
+      $minimumTests = if ($branch -eq 4) { 146 } else { 144 }
       $complete = $discovered.Success -and $results.Success -and
         ([int]$discovered.Groups[1].Value -eq [int]$discovered.Groups[2].Value) -and
         ([int]$results.Groups[1].Value -eq [int]$discovered.Groups[1].Value) -and

@@ -1091,3 +1091,4 @@
 {$L obj3\win32\bcc\libssl-lib-tls_multib_win32}
 {$L obj3\win32\bcc\libssl-lib-tls_srp_win32}
 {$L obj3\win32\bcc\libssl-lib-uint_set_win32}
+{$L obj3\win32\bcc\libcrypto-lib-delphi_hpke_win32}

@@ -7,7 +7,7 @@ This eliminates DLL deployment complexity and ensures version consistency.
   support for all major OpenSSL subsystems ( SSL/TLS, X.509, EVP, BIO, ASN.1, PKCS, CMS etc). see `Supported API Surface` chapter
 - **Win32 + Win64** - pre-built objects for both platforms, multiple compiler toolchains
 - **Reproducible builds** - build scripts for OpenSSL 3.x / 4.x branches see `Building Object Files` chapter
-- **DUnitX test suite** - 111 tests for OpenSSL 3.6.1 and 113 for OpenSSL 4.1.0, including TLS handshakes and ABI regressions
+- **DUnitX test suite** - 144 tests for OpenSSL 3.6.1 and 146 for OpenSSL 4.1.0, including TLS handshakes and ABI regressions
 
 ## Supported API Surface
 | Module | Functions | Description |
@@ -209,15 +209,27 @@ To repeat the matrix with an installed EurekaLog:
 powershell -NoProfile -ExecutionPolicy Bypass -File tests\verify-matrix.ps1 -EurekaLog
 ```
 
-The suite contains **111 DUnitX tests for OpenSSL 3.6.1** and **113 for OpenSSL 4.1.0**
-in `tests/TestOpenSSL3API.pas` and `tests/TestOpenSSLRegressions.pas`. Coverage includes
+The suite contains **144 DUnitX tests for OpenSSL 3.6.1** and **146 for OpenSSL 4.1.0**
+in `tests/TestOpenSSL3API.pas`, `tests/TestOpenSSLRegressions.pas`,
+`tests/TestOpenSSLAdditionalABI.pas`, and `tests/TestOpenSSLCallbackABI.pas`. Coverage includes
 verified TLS 1.2/1.3 handshakes over paired memory BIOs, binary application data,
 untrusted certificate rejection, negotiated session duplication, and close_notify.
 Crypto regressions cover RSA signing and tamper rejection, ECDH, AES-GCM known vectors
 and invalid tags, CBC padding rejection, PBKDF2, and provider HMAC. Interop tests cover
 OSSL_PARAM record returns and scalar widths, time_t, IPv4/IPv6 address formatting,
 BIO backpressure, ASN.1 time boundaries, and isolated provider reloads. OpenSSL 4.x
-adds SKEY and SKEYMGMT reference-counting tests.
+adds SKEY and SKEYMGMT reference-counting tests. Additional ABI regressions cover
+callback conventions, CRYPTO_EX_DATA layout, per-toolchain BN_ULONG widths,
+parameter builders, octet output lengths, BIO va_list formatting, and version-specific
+X509_ALGOR_set_md return types, narrow TLS scalars, and HPKE suite records by value.
+Callback regressions cover four-argument legacy EVP enumeration, mutable ex-data
+duplication, BIO method getters and observers, async callback output pointers,
+provider dispatch tables, RAND method callbacks, and encrypted PEM passwords.
+The matrix compiles a small C probe from the selected release archive with each
+target C compiler and compares its sizeof/offsetof results for 13 public records
+with the Delphi declarations. This requires Python and the five C toolchains.
+The probe and its generated sources stay in the validation output directory;
+ABI_LAYOUT_PROBE enables these two C interop tests in the matrix runner.
 
 The runner checks that every discovered test executes, rejects warnings and failed
 or ignored tests, and checks process termination as well as the test summary. Build

@@ -21,7 +21,9 @@ uses
   DUnitX.TestFramework,
   libOpenSSL3,
   TestOpenSSL3API in 'TestOpenSSL3API.pas',
-  TestOpenSSLRegressions in 'TestOpenSSLRegressions.pas';
+  TestOpenSSLRegressions in 'TestOpenSSLRegressions.pas',
+  TestOpenSSLAdditionalABI in 'TestOpenSSLAdditionalABI.pas',
+  TestOpenSSLCallbackABI in 'TestOpenSSLCallbackABI.pas';
 
 var
   Runner: ITestRunner;

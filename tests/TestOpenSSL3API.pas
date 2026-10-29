@@ -1083,7 +1083,7 @@ begin
   BN_set_word(B, 200);
 
   Assert.AreEqual(1, BN_add(R, A, B));
-  Assert.AreEqual(Cardinal(300), BN_get_word(R), '100 + 200 = 300');
+  Assert.AreEqual(BN_ULONG(300), BN_get_word(R), '100 + 200 = 300');
 
   BN_free(A);
   BN_free(B);
@@ -1104,7 +1104,7 @@ begin
   BN_set_word(B, 6);
 
   Assert.AreEqual(1, BN_mul(R, A, B, Ctx));
-  Assert.AreEqual(Cardinal(42), BN_get_word(R), '7 * 6 = 42');
+  Assert.AreEqual(BN_ULONG(42), BN_get_word(R), '7 * 6 = 42');
 
   BN_CTX_free(Ctx);
   BN_free(A);

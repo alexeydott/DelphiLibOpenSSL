@@ -192,7 +192,7 @@ begin
   Number := nil;
   try
     Check(OSSL_PARAM_get_BN(@Param, @Number), 'Decode native-endian BN parameter');
-    Assert.AreEqual(NativeUInt($12345678), BN_get_word(Number));
+    Assert.AreEqual(BN_ULONG($12345678), BN_get_word(Number));
   finally
     BN_free(Number);
   end;

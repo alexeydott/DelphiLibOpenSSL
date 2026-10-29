@@ -52,6 +52,8 @@
         </DelphiCompile>
         <DCCReference Include="TestOpenSSL3API.pas"/>
         <DCCReference Include="TestOpenSSLRegressions.pas"/>
+        <DCCReference Include="TestOpenSSLAdditionalABI.pas"/>
+        <DCCReference Include="TestOpenSSLCallbackABI.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
